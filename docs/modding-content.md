@@ -91,7 +91,8 @@ value:
 
 ## Not implemented
 
-- Content definitions are parsed and validated, but do not create or modify `GameDatabase` records or appear in gameplay yet.
+- Content definitions are parsed and validated, but do not create or modify `GameDatabase` records or appear in gameplay yet. Lua contract
+  definitions use the separate `meitou.contracts.register` API ([modding-lua](modding-lua.md)), not YAML `contract` content.
 - Texture, mesh and audio importers are not registered by the game; only the cache/refcount contract exists.
 - Asynchronous asset loading, streaming, and GPU upload are later.
 - Content-to-content references and dependency validation are not implemented.

@@ -1,7 +1,8 @@
 # Meitou mod manifest
 
-**Implemented** in `src/Meitou.Core/Modding` (2026-10-26). The launcher validates enabled manifests before Play; the game does not load
-content, C# or Lua from them yet. A missing manifest keeps the original Kenshi data-mod rules.
+**Implemented** in `src/Meitou.Core/Modding` (2026-10-26). The launcher validates enabled manifests before Play; the game loads C# plugins and
+Lua scripts from enabled manifests. YAML content is validated but not applied to gameplay yet. A missing manifest keeps the original Kenshi
+data-mod rules.
 
 ## File
 
@@ -84,7 +85,7 @@ The mods are in load order. The hash currently covers only `meitou.json`; conten
 
 - Content YAML and asset roots are mounted and validated by `Meitou.Modding` ([modding-content](modding-content.md)), but their
   definitions do not affect gameplay yet.
-- C# `plugin` assemblies load through [modding-csharp](modding-csharp.md); Lua `script` entries do not load yet.
+- C# `plugin` assemblies load through [modding-csharp](modding-csharp.md); Lua `script` entries load through [modding-lua](modding-lua.md).
 - Manifest-only mod folders (no `<name>.mod`) are not discovered yet.
 - The launcher does not write a lockfile or offer automatic dependency enabling yet.
 - Saves record mod state in `meitou-mods/<id>.bin` sidecars, not in the vanilla save or a lockfile.

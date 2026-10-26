@@ -1,8 +1,8 @@
 # C# modding API
 
 **Status: Phase 3 host implemented (2026-10-26).** Enabled `trust: plugin` mods load after the data merge, register services/systems/
-saveables and are validated at startup. Lua is not implemented, and RE_Kenshi DLLs stay ignored ([rekenshi](formats/rekenshi.md)).
-The game remains a JIT build; the Native AOT launcher loads no mod code.
+saveables and are validated at startup. Lua scripts use the separate [modding-lua](modding-lua.md) host; RE_Kenshi DLLs stay ignored
+([rekenshi](formats/rekenshi.md)). The game remains a JIT build; the Native AOT launcher loads no mod code.
 
 ## Discovery and loading
 
@@ -77,7 +77,7 @@ public interface IModContext
 - Before/after `StandardParts` anchors; every mod system is appended.
 - Dialogue condition/effect registries, console/`SimCommand` command registration, and custom FCS record types.
 - UI or rendering hooks.
-- Lua and the `script` trust tier.
+- Shared save sidecars and command/resource access from Lua.
 - Collectible contexts, unload and hot reload.
 - Merging separately loaded private contract assemblies for typed cross-mod services.
 - Automatic dependency installation and save migration when a mod is removed or upgraded.

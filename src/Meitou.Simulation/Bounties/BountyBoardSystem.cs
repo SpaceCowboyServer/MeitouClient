@@ -93,6 +93,8 @@ public sealed record BountySettings
     public int OfferRefreshTicks { get; init; } = 150;
     /// <summary>Ticks between rebuilt views (distance changes as the player moves).</summary>
     public int ViewRefreshTicks { get; init; } = 15;
+    /// <summary>Contract definitions contributed by mods or scripts; null: only the built-in offers.</summary>
+    public BountyContractCatalog? Contracts { get; init; }
 }
 
 /// <summary>
@@ -140,14 +142,16 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
     {
         if ((uint)attacker >= (uint)world.Characters.HighWater || (uint)defender >= (uint)world.Characters.HighWater) return;
         if (world.Characters.Cold(attacker) is not { IsPlayer: true } || world.Characters.Cold(defender) is not { } victim) return;
+        bool unique = world.Uniques.RecordOf(world.Characters.IdOf(defender)) is not null ||
+            data.Db.Find(victim.RecordId) is { } victimRecord && UniqueCharacters.IsUnique(victimRecord);
         for (int i = 0; i < contracts.Count; i++)
         {
             var contract = contracts[i];
             if (contract.State != BountyState.Accepted || contract.Objective != BountyObjective.Kill) continue;
             bool matches = contract.Kind switch
             {
-                BountyTargetKind.Faction => victim.Faction == contract.Faction,
-                BountyTargetKind.AnimalSpecies => victim.Fighter is { IsAnimal: true } && victim.RecordId == contract.TargetRecord,
+                BountyTargetKind.Faction => !unique && victim.Faction == contract.Faction,
+                BountyTargetKind.AnimalSpecies => !unique && victim.Fighter is { IsAnimal: true } && victim.RecordId == contract.TargetRecord,
                 BountyTargetKind.Character or BountyTargetKind.Spawned => victim.ContractTarget is { } marker && marker == contract.TargetMarker,
                 _ => false,
             };
@@ -223,7 +227,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         };
         if (spawnedName is { Length: > 0 })
         {
-            contract.Title = "Hunt " + spawnedName;
+            contract.Title = (contract.Objective == BountyObjective.Capture ? "Capture " : "Hunt ") + spawnedName;
             contract.TargetName = spawnedName;
         }
         contracts.Add(contract);
@@ -246,6 +250,16 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
     {
         var players = PlayerPositions(world);
         offers.RemoveAll(o => float.IsPositiveInfinity(OfferDistance(world, o, players)));
+        if (settings.Contracts is { } catalog)
+        {
+            foreach (var definition in catalog.Definitions)
+            {
+                if (offers.Count >= settings.MaxOffers) break;
+                if (offers.Exists(o => o.Id == definition.Id) || contracts.Exists(c => c.Id == definition.Id)) continue;
+                if (CustomOffer(definition, world.Seed) is not { } offer || float.IsPositiveInfinity(OfferDistance(world, offer, players))) continue;
+                offers.Add(offer);
+            }
+        }
         if (offers.Count < settings.MaxOffers && settings.OfferSpecific && !HasKind(BountyTargetKind.Character))
             if (FindSpecificTarget(world, players) is { } target) offers.Add(CharacterOffer(target, world.Seed));
         if (offers.Count < settings.MaxOffers && settings.OfferAnimals && !HasKind(BountyTargetKind.AnimalSpecies) && !HasContract(BountyTargetKind.AnimalSpecies))
@@ -292,6 +306,46 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
     BountyOffer SpawnOffer(SpawnCandidate spawn, ulong seed) => new(
         "spawn:" + spawn.FactionId, BountyTargetKind.Spawned, BountyObjective.Kill, "Hunt a " + spawn.FactionName, spawn.FactionName,
         "Kill the target", spawn.RecordId, $"spawn:{seed}:{spawn.FactionId}", CharacterId.None, spawn.Faction, spawn.FactionId, 1, settings.SpawnReward);
+
+    BountyOffer? CustomOffer(BountyContractDefinition definition, ulong seed)
+    {
+        string detail = !string.IsNullOrEmpty(definition.Detail)
+            ? definition.Detail
+            : definition.Kind switch
+            {
+                BountyTargetKind.Faction => $"{definition.Required} kills",
+                BountyTargetKind.AnimalSpecies => $"{definition.Required} animals",
+                BountyTargetKind.Spawned => definition.Objective == BountyObjective.Capture ? "Cage the target" : "Kill the target",
+                _ => "",
+            };
+        switch (definition.Kind)
+        {
+            case BountyTargetKind.Faction:
+            {
+                int faction = data.FactionIndex(definition.FactionId);
+                if (faction < 0) return null;
+                return new(definition.Id, definition.Kind, definition.Objective, definition.Title, data.Factions[faction].Name, detail,
+                    null, null, CharacterId.None, faction, data.Factions[faction].Id, definition.Required, definition.Reward);
+            }
+            case BountyTargetKind.AnimalSpecies:
+            {
+                if (data.Db.Find(definition.TargetRecord) is not { Type: FcsRecordType.ANIMAL_CHARACTER } record || UniqueCharacters.IsUnique(record))
+                    return null;
+                return new(definition.Id, definition.Kind, definition.Objective, definition.Title, record.Name, detail,
+                    definition.TargetRecord, null, CharacterId.None, -1, "", definition.Required, definition.Reward);
+            }
+            case BountyTargetKind.Spawned:
+            {
+                if (Population is null || data.Db.Find(definition.TargetRecord) is not { Type: FcsRecordType.CHARACTER } record ||
+                    UniqueCharacters.IsUnique(record) || data.FactionIndex(definition.FactionId) is not (>= 0 and var faction))
+                    return null;
+                return new(definition.Id, definition.Kind, definition.Objective, definition.Title, data.Factions[faction].Name, detail,
+                    definition.TargetRecord, $"spawn:{seed}:{definition.Id}", CharacterId.None, faction, data.Factions[faction].Id, definition.Required, definition.Reward);
+            }
+            default:
+                return null;
+        }
+    }
 
     SpawnCandidate? FindSpawnTarget(World world, List<Vector3> players)
     {
@@ -367,25 +421,29 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         return players;
     }
 
-    static float NearestFaction(World world, int faction, List<Vector3> players)
+    float NearestFaction(World world, int faction, List<Vector3> players)
     {
         if (players.Count == 0) return float.PositiveInfinity;
         float best = float.PositiveInfinity;
         for (int s = 0; s < world.Characters.HighWater; s++)
         {
             if (!world.Characters.Next[s].Alive || world.Characters.Cold(s) is not { Medical.Dead: false } c || c.Faction != faction || c.IsPlayer) continue;
+            if (world.Uniques.RecordOf(world.Characters.IdOf(s)) is not null ||
+                data.Db.Find(c.RecordId) is { } record && UniqueCharacters.IsUnique(record)) continue;
             best = MathF.Min(best, Distance(players, world.Characters.Next[s].Position));
         }
         return best;
     }
 
-    static float NearestAnimal(World world, string? record, List<Vector3> players)
+    float NearestAnimal(World world, string? record, List<Vector3> players)
     {
         if (players.Count == 0 || record is null) return float.PositiveInfinity;
         float best = float.PositiveInfinity;
         for (int s = 0; s < world.Characters.HighWater; s++)
         {
             if (!world.Characters.Next[s].Alive || world.Characters.Cold(s) is not { Medical.Dead: false, Fighter.IsAnimal: true } c || c.RecordId != record) continue;
+            if (world.Uniques.RecordOf(world.Characters.IdOf(s)) is not null ||
+                data.Db.Find(c.RecordId) is { } animal && UniqueCharacters.IsUnique(animal)) continue;
             best = MathF.Min(best, Distance(players, world.Characters.Next[s].Position));
         }
         return best;
@@ -445,6 +503,8 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         {
             if (!world.Characters.Next[s].Alive) continue;
             if (world.Characters.Cold(s) is not { IsPlayer: false, Medical.Dead: false, IsImprisoned: false, CarriedBy.IsNone: true, Fighter.IsAnimal: true } c) continue;
+            if (world.Uniques.RecordOf(world.Characters.IdOf(s)) is not null ||
+                data.Db.Find(c.RecordId) is { } animal && UniqueCharacters.IsUnique(animal)) continue;
             float distance = Distance(players, world.Characters.Next[s].Position);
             if (distance > settings.OfferRange) continue;
             found[c.RecordId] = found.TryGetValue(c.RecordId, out var old) ? (old.Count + 1, MathF.Min(old.Distance, distance)) : (1, distance);

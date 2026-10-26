@@ -578,14 +578,15 @@ a building is a pending Theft with thievery XP 20, no roll.
 to three jobs near the player: a faction-group contract (three bandit-faction kills), an animal-species cull (three animals of one `ANIMAL_CHARACTER`
 record), and one hunt for an existing non-story bandit (any loaded bandit-faction character, not `unique`, not in the unique table). A global faction
 contract pays c.4,500, an animal cull c.3,000, and a named hunt c.5,000. Group and species progress counts the player's killing blows through
-`CombatSystem`'s serial `ICombatDeathSink`; a named target completes when it dies (by anyone). A downed named target instead offers a c.6,500 `Capture`
+`CombatSystem`'s serial `ICombatDeathSink`; unique (story) records are ignored by group/species progress and selection. A named target completes when it dies (by anyone). A downed named target instead offers a c.6,500 `Capture`
 contract, which completes when the target is caged. A named target gets a stable `meitou contract target` marker, saved on its GAMESTATE_CHARACTER, so it can unload with its
 platoon and come back as the same contract. When no existing target is near, the board offers a spawned-target hunt; accepting it creates a small
 faction squad near the player through `PopulationSystem.SpawnSandboxSquad` (idle first version) and marks its leader. Accept/abandon are
 `SimCommand`s from the faction tab (`PlayerInterface.Faction`); offers, progress and the distance to the nearest target are published in
 `WorldSnapshot.Bounties`. Completed contracts stay completed for that save; abandoning clears the target marker and reoffers. Saved in CAMERA
 (`meitou bounty*`, by faction ID and target marker; offers are derived again), so a save whose faction or target disappears drops only that contract.
-Engine choices: no delivery/turn-in, flat rewards and no deadline; content-defined contracts and an external C# framework remain later work.
+Lua scripts can add faction/animal/spawned definitions through `BountyContractCatalog` ([modding-lua](modding-lua.md)); the board builds their offers and saves accepted ones
+like its own. Engine choices: no delivery/turn-in, flat rewards and no deadline; YAML-defined contracts and an external C# framework remain later work.
 
 ## Cages, beds and locks
 

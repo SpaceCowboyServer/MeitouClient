@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The sandboxed Lua host for trust: script mods. JIT-only, like the C# plugin host. -->
+  <ItemGroup>
+    <PackageReference Include="MoonSharp" Version="2.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Meitou.Core\Meitou.Core.csproj" />
+    <ProjectReference Include="..\Meitou.Data\Meitou.Data.csproj" />
+    <ProjectReference Include="..\Meitou.Simulation\Meitou.Simulation.csproj" />
+  </ItemGroup>
+</Project>
