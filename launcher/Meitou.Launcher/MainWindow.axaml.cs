@@ -11,6 +11,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Meitou.Content;
 using Meitou.Localisation;
+using Meitou.Modding;
 
 namespace Meitou.Launcher;
 
@@ -475,6 +476,29 @@ public sealed partial class MainWindow : Window
         if (SaveMods()) Status($"Mod list saved: {mods.Count(m => m.Enabled)} enabled.");
     }
 
+    // Play resolves the enabled manifests before starting the game. Missing, disabled or version-mismatched dependencies and conflicts
+    // stop the launch; legacy data-only mods have no manifest and keep the original game's load rules.
+    bool ValidateMods()
+    {
+        var discovery = ModDiscovery.Discover(mods.Select(row => row.Mod));
+        var enabledIds = mods.Where(row => row.Enabled && row.Mod.Manifest is not null)
+            .Select(row => row.Mod.Manifest!.Id).ToList();
+        var resolution = ModResolver.Resolve(discovery.Candidates, enabledIds);
+        var enabledNames = mods.Where(row => row.Enabled).Select(row => row.Name).ToHashSet(StringComparer.Ordinal);
+        var errors = discovery.Issues
+            .Where(issue => issue.FolderName is null || enabledNames.Contains(issue.FolderName))
+            .Concat(resolution.Issues)
+            .Where(issue => issue.Severity == ModIssueSeverity.Error)
+            .Select(issue => issue.Message)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (errors.Count == 0) return true;
+
+        string more = errors.Count > 3 ? $" (+{errors.Count - 3} more)" : "";
+        Status("Mods cannot load: " + string.Join(" | ", errors.Take(3)) + more);
+        return false;
+    }
+
     void RefreshMods_Click(object? sender, RoutedEventArgs e) => LoadMods();
 
     void SelectAll_Click(object? sender, RoutedEventArgs e) { foreach (var m in mods) m.Enabled = true; }
@@ -554,6 +578,18 @@ public sealed partial class MainWindow : Window
         {
             var missing = header.Dependencies.Where(d => !IsAvailableBefore(d, row)).ToList();
             parts.Add($"Needs {string.Join(", ", header.Dependencies)}" + (missing.Count > 0 ? $" (not enabled above it: {string.Join(", ", missing)})" : ""));
+        }
+        if (row.Mod.ManifestError is { } manifestError)
+            parts.Add($"Invalid meitou.json: {manifestError}");
+        else if (row.Mod.Manifest is { } manifest)
+        {
+            parts.Add($"Meitou {manifest.Id} {manifest.Version} ({manifest.Trust.ToString().ToLowerInvariant()})");
+            if (manifest.Depends.Count > 0)
+                parts.Add($"Needs {string.Join(", ", manifest.Depends.Select(dependency => dependency.Key + " " + dependency.Value))}");
+            if (manifest.Optional.Count > 0)
+                parts.Add($"Optional {string.Join(", ", manifest.Optional.Keys)}");
+            if (manifest.Conflicts.Count > 0)
+                parts.Add($"Conflicts {string.Join(", ", manifest.Conflicts)}");
         }
         parts.Add(row.Mod.Folder);
         ModDetails.Text = string.Join(" · ", parts);
@@ -1077,6 +1113,7 @@ public sealed partial class MainWindow : Window
         // A second game would share meitou.user.json and the mod list with the first; whichever closes last overwrites the other's.
         if (running is { HasExited: false }) { Status("Meitou is already running: close it before starting it again."); return; }
         if (!SaveMods()) return;
+        if (!ValidateMods()) return;
         if (graphicsSave?.IsEnabled == true) SaveGame();
         var start = new ProcessStartInfo(exe)
         {

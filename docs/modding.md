@@ -1,7 +1,8 @@
 # Modding foundation
 
-**Status: plan, not implemented (2026-10-26).** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands:
-its native DLLs stay ignored. Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
+**Status: manifest/discovery/resolver/lockfile foundation implemented (2026-10-26); content, assets, C#/Lua loading and save
+integration are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay ignored.
+Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
 
 Goal: a data-first modding foundation with a stable API, compiled C# extensions first, Lua later, and a launcher
 that resolves dependencies, load order and trust. Non-goals for v1: RE_Kenshi binary compatibility, native plugins,
@@ -46,31 +47,11 @@ a broken Lua script does not crash the game.
 
 `meitou.json` is JSON (source-generated; the launcher is Native AOT). Content uses `content/*.yaml` (game-side).
 Legacy Kenshi `.mod` files keep the existing `mods.cfg`/`__mods.list` path; a Meitou manifest is required for
-Meitou-specific code, content schemas and assets.
+Meitou-specific code, content schemas and assets. The implemented fields, semver/range syntax, resolution rules and
+`profile.lock.json` are in [modding-manifest](modding-manifest.md).
 
-```json
-{
-  "id": "frontier.bounty.dust_bandit",
-  "version": "1.0.0",
-  "apiVersion": 1,
-  "gameVersion": ">=0.16 <0.17",
-  "depends": { "frontier.bounties": ">=1.2 <2", "frontier.revolver": ">=1.0 <2" },
-  "optional": { "frontier.weather": ">=0.5" },
-  "provides": ["frontier.contracts@1"],
-  "loadAfter": ["frontier.bounties"],
-  "content": ["content/"],
-  "assets": ["assets/"],
-  "trust": "script",
-  "entry": "scripts/main.lua"
-}
-```
-
-- C# mods add `"assemblies": ["lib/Foo.dll"]` and an entry type (`"entry": "Foo.FooMod"`).
-- IDs are namespaced (`modid`); content/assets are `modid:category/name`.
-- Hard deps must resolve; optional deps enable extra behavior; cycles fail.
-- A profile writes `profile.lock.json` with resolved versions, checksums, order and trust. Saves record it.
-- Trust: `data` (validated), `script` (Lua sandbox), `plugin` (C# trusted/opt-in). `native` is unsupported.
-- Versions: mod semver, API major, game range, content schema version.
+Trust tiers are `data`, `script` and `plugin`; `native` is unsupported. IDs are namespaced (`frontier.revolver`), content/assets
+use `modid:category/name`, and the launcher refuses Play on missing/disabled dependencies, conflicts or version mismatches.
 
 ## Data and assets
 

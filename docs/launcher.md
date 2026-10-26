@@ -215,6 +215,9 @@ start the `settings.cfg` value wins. The launcher's labels come from the same `.
 - A preset is a named, ordered list of names with enabled flags. Applying one reorders the list. Mods the preset doesn't name go
   to the end, disabled, and mods it names that aren't on disk are reported. Applying doesn't save.
 - A mod folder with `RE_Kenshi.json` is marked as a plugin mod whose DLLs Meitou ignores ([RE_Kenshi](formats/rekenshi.md)).
+- A mod with `meitou.json` shows its ID, version and trust; Play resolves the enabled manifests and refuses missing/disabled
+  dependencies, conflicts or version mismatches before starting ([modding-manifest](modding-manifest.md)). Legacy mods without a
+  manifest keep the rules above.
 
 ## News
 

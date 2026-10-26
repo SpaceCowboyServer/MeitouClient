@@ -1,4 +1,5 @@
 using System.Text;
+using Meitou.Modding;
 
 namespace Meitou.Content;
 
@@ -143,6 +144,8 @@ public sealed class ModInfo(string name, string path, ModSource source)
 {
     ModHeader? header;
     bool headerRead;
+    ModManifestReadResult manifest;
+    bool manifestRead;
 
     public string Name { get; } = name;
     public string Path { get; } = path;
@@ -160,6 +163,37 @@ public sealed class ModInfo(string name, string path, ModSource source)
             if (!headerRead) { header = ModHeader.TryRead(Path); headerRead = true; }
             return header;
         }
+    }
+
+    /// <summary>The optional Meitou manifest beside the <c>.mod</c> file.</summary>
+    public string ManifestPath => System.IO.Path.Combine(Folder, ModManifest.FileName);
+
+    /// <summary>Whether this mod carries a Meitou manifest (legacy Kenshi data mods usually do not).</summary>
+    public bool HasManifest => File.Exists(ManifestPath);
+
+    /// <summary>The validated manifest, read on first use; null when absent or invalid.</summary>
+    public ModManifest? Manifest
+    {
+        get { EnsureManifest(); return manifest.Manifest; }
+    }
+
+    /// <summary>The manifest's error, or null when it is absent or valid.</summary>
+    public string? ManifestError
+    {
+        get { EnsureManifest(); return manifest.Error; }
+    }
+
+    /// <summary>SHA-256 of the manifest file, lowercase hex; null when it is absent or unreadable.</summary>
+    public string? ManifestSha256
+    {
+        get { EnsureManifest(); return manifest.ManifestSha256; }
+    }
+
+    void EnsureManifest()
+    {
+        if (manifestRead) return;
+        manifest = ModManifest.Read(ManifestPath);
+        manifestRead = true;
     }
 }
 

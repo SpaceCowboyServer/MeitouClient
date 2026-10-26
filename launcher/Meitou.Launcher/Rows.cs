@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Meitou.Content;
 using Meitou.Localisation;
+using Meitou.Modding;
 
 namespace Meitou.Launcher;
 
@@ -12,10 +13,34 @@ public sealed class ModRow(ModInfo mod, bool enabled) : INotifyPropertyChanged
 
     public ModInfo Mod { get; } = mod;
     public string Name => Mod.Name;
-    public string Detail => LauncherText.Translate(Mod.Source == ModSource.Workshop ? "Steam workshop" : "Local mod")
-        + (Mod.Header is { Author.Length: > 0 } h ? $" · {h.Author}" : "");
-    public string Notes => Mod.HasNativePlugin ? LauncherText.Translate("RE_Kenshi plugin: its DLLs are ignored in Meitou") : "";
-    public bool HasNotes => Mod.HasNativePlugin;
+    public string Detail
+    {
+        get
+        {
+            var parts = new List<string> { LauncherText.Translate(Mod.Source == ModSource.Workshop ? "Steam workshop" : "Local mod") };
+            if (Mod.Header is { Author.Length: > 0 } header) parts.Add(header.Author);
+            if (Mod.Manifest is { } manifest) parts.Add($"{manifest.Id} {manifest.Version}");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    public string Notes
+    {
+        get
+        {
+            if (Mod.ManifestError is { } error)
+                return Loc.Format(LauncherText.Translate("Invalid meitou.json: {1}"), error);
+            if (Mod.HasNativePlugin)
+                return LauncherText.Translate("RE_Kenshi plugin: its DLLs are ignored in Meitou");
+            if (Mod.Manifest is { Trust: ModTrust.Plugin } plugin)
+                return Loc.Format(LauncherText.Translate("Meitou C# mod: {1} assembly(ies)"), plugin.Assemblies.Count);
+            if (Mod.Manifest is { Trust: ModTrust.Script } script)
+                return Loc.Format(LauncherText.Translate("Meitou Lua mod: {1}"), script.Entry ?? "");
+            return "";
+        }
+    }
+
+    public bool HasNotes => Notes.Length > 0;
 
     public bool Enabled
     {
