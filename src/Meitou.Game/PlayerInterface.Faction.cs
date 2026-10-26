@@ -81,7 +81,7 @@ sealed partial class PlayerInterface
             var lines = new List<HudLine> { new(Loc.Tr("---Active Contracts---"), "", GreyColour) };
             if (board is { Active.Count: > 0 })
                 foreach (var contract in board.Active)
-                    lines.Add(new($"{contract.FactionName}  {contract.Progress}/{contract.Required}", Loc.Tr("Abandon"), MainColour, BadBrightColour,
+                    lines.Add(new($"{contract.Title}  {contract.Progress}/{contract.Required}", Loc.Tr("Abandon"), MainColour, BadBrightColour,
                         TooltipRows: BountyTip(contract.Reward, contract.Distance), Action: "bounty-abandon:" + contract.Id, ButtonWidth: 0.27f));
             else
                 lines.Add(new(Loc.Tr("No active contracts"), "", GreyColour));
@@ -89,7 +89,7 @@ sealed partial class PlayerInterface
             lines.Add(new(Loc.Tr("---Available Contracts---"), "", GreyColour));
             if (board is { Offers.Count: > 0 })
                 foreach (var offer in board.Offers)
-                    lines.Add(new($"{offer.FactionName}  {Loc.Tr("{1} kills", offer.Required)}", Loc.Tr("Accept"), MainColour, GoodColour,
+                    lines.Add(new($"{offer.Title}  {offer.Detail}", Loc.Tr("Accept"), MainColour, GoodColour,
                         TooltipRows: BountyTip(offer.Reward, offer.Distance), Action: "bounty-accept:" + offer.Id, ButtonWidth: 0.27f));
             else
                 lines.Add(new(Loc.Tr("No bounties nearby"), "", GreyColour));

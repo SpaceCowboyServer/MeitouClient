@@ -1,10 +1,12 @@
 using System.Numerics;
 using Meitou.Data;
+using Meitou.Data.Fcs;
 using Meitou.Data.Gameplay;
 using Meitou.Data.Save;
 using Meitou.Simulation;
 using Meitou.Simulation.Bodies;
 using Meitou.Simulation.Bounties;
+using Meitou.Simulation.Combat;
 using Meitou.Simulation.Saving;
 using SimWorld = Meitou.Simulation.World;
 
@@ -42,9 +44,13 @@ public class BountyTests
             World = new SimWorld(new WorldSettings { Seed = 1, Threads = 1, PublishSnapshots = false }, walk, [Board]);
         }
 
-        public CharacterId Spawn(int faction, bool player, Vector2 at, string name)
+        public CharacterId Spawn(int faction, bool player, Vector2 at, string name, bool fighter = false, bool animal = false, string record = "")
         {
-            var cold = new CharacterCold { Name = name, Faction = faction, IsPlayer = player, Medical = new MedicalState([]) };
+            var cold = new CharacterCold
+            {
+                Name = name, Faction = faction, IsPlayer = player, RecordId = record, Medical = new MedicalState([]),
+                Fighter = fighter ? new Fighter(null) { IsAnimal = animal } : null,
+            };
             var id = World.Characters.Spawn(new CharacterHot { Position = new Vector3(at.X, 0, at.Y), Health = 100 }, cold, 0);
             if (faction == Bandits) bandits.Add(id);
             return id;
@@ -52,6 +58,9 @@ public class BountyTests
 
         public CharacterId Player(Vector2 at) => Spawn(PlayerFaction, true, at, "hero");
         public CharacterId Bandit(Vector2 at, string name = "bandit") => Spawn(Bandits, false, at, name);
+        public CharacterId NamedBandit(Vector2 at, string name = "Razar") => Spawn(Bandits, false, at, name, fighter: true);
+        public CharacterId Animal(Vector2 at, string record = "beak", string name = "Beak Thing") => Spawn(Bandits, false, at, name, fighter: true, animal: true, record: record);
+        public CharacterCold Cold(CharacterId id) => World.Characters.Cold(id.Slot)!;
         public void Run(int ticks) => World.RunTicks(ticks);
 
         public void Dispose() => World.Dispose();
@@ -173,6 +182,83 @@ public class BountyTests
         BountyBoardSave.Read(builder.Game.Camera, world, data);
 
         Assert.Empty(board.Contracts);
+    }
+
+    [Fact]
+    public void Offers_and_completes_a_named_non_story_bandit()
+    {
+        using var rig = new Rig(new BountySettings { OfferRefreshTicks = 1, ViewRefreshTicks = 1, OfferAnimals = false });
+        var player = rig.Player(Vector2.Zero);
+        var target = rig.NamedBandit(new Vector2(100, 0));
+        rig.Run(1);
+
+        var hunt = Assert.Single(rig.Board.Published.Offers, o => o.Id.StartsWith("hunt:", StringComparison.Ordinal));
+        Assert.Equal("Hunt Razar", hunt.Title);
+        Assert.Equal("Kill the target", hunt.Detail);
+        rig.World.Commands.Enqueue(new AcceptBountyCommand(hunt.Id) { Tick = rig.World.Tick });
+        rig.Run(1);
+
+        var contract = Assert.Single(rig.Board.Contracts);
+        Assert.Equal(BountyTargetKind.Character, contract.Kind);
+        Assert.Equal(hunt.Id, contract.TargetMarker);
+        Assert.Equal(hunt.Id, rig.Cold(target).ContractTarget);
+
+        rig.Board.Died(rig.World, player.Slot, target.Slot);
+        Assert.Equal(5000, rig.World.Player.Money);
+        Assert.Equal(BountyState.Completed, contract.State);
+    }
+
+    [Fact]
+    public void Offers_and_completes_an_animal_species_cull()
+    {
+        using var rig = new Rig(new BountySettings { OfferRefreshTicks = 1, ViewRefreshTicks = 1, OfferSpecific = false });
+        var player = rig.Player(Vector2.Zero);
+        var first = rig.Animal(new Vector2(100, 0));
+        var second = rig.Animal(new Vector2(100, 10));
+        var third = rig.Animal(new Vector2(100, 20));
+        rig.Run(1);
+
+        var cull = Assert.Single(rig.Board.Published.Offers, o => o.Id == "cull:beak");
+        Assert.Equal("Cull beak", cull.Title);
+        Assert.Equal("3 animals", cull.Detail);
+        rig.World.Commands.Enqueue(new AcceptBountyCommand(cull.Id) { Tick = rig.World.Tick });
+        rig.Run(1);
+
+        var contract = Assert.Single(rig.Board.Contracts);
+        Assert.Equal(BountyTargetKind.AnimalSpecies, contract.Kind);
+        rig.Board.Died(rig.World, player.Slot, first.Slot);
+        rig.Board.Died(rig.World, player.Slot, second.Slot);
+        rig.Board.Died(rig.World, player.Slot, third.Slot);
+        Assert.Equal(3000, rig.World.Player.Money);
+        Assert.Equal(BountyState.Completed, contract.State);
+    }
+
+    [Fact]
+    public void A_named_target_marker_and_contract_round_trip_through_save_state()
+    {
+        using var rig = new Rig(new BountySettings { OfferRefreshTicks = 1, ViewRefreshTicks = 1, OfferAnimals = false });
+        _ = rig.Player(Vector2.Zero);
+        var target = rig.NamedBandit(new Vector2(100, 0));
+        rig.Run(1);
+        var hunt = Assert.Single(rig.Board.Published.Offers, o => o.Id.StartsWith("hunt:", StringComparison.Ordinal));
+        rig.World.Commands.Enqueue(new AcceptBountyCommand(hunt.Id) { Tick = rig.World.Tick });
+        rig.Run(1);
+        _ = target;
+
+        var state = new FcsRecord();
+        ContractTargetSave.Write(state, hunt.Id);
+        Assert.Equal(hunt.Id, ContractTargetSave.Read(state));
+        ContractTargetSave.Write(state, null);
+        Assert.Null(ContractTargetSave.Read(state));
+
+        var builder = new SaveBuilder();
+        BountyBoardSave.Write(builder.Game.Camera, rig.World, rig.Data);
+        using var restored = new Rig();
+        BountyBoardSave.Read(builder.Game.Camera, restored.World, restored.Data);
+        var contract = Assert.Single(restored.Board.Contracts);
+        Assert.Equal(BountyTargetKind.Character, contract.Kind);
+        Assert.Equal(hunt.Id, contract.TargetMarker);
+        Assert.Equal(BountyState.Accepted, contract.State);
     }
 
     [Fact]

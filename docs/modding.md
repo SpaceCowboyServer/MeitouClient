@@ -1,7 +1,7 @@
 # Modding foundation
 
-**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host and the core faction bounty board are implemented
-(2026-10-26); applying content to gameplay and Lua are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs
+**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host and the core contract board (faction, animal and
+named targets) are implemented (2026-10-26); applying content to gameplay and Lua are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs
 stay ignored. Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
 
 Goal: a data-first modding foundation with a stable API, compiled C# extensions first, Lua later, and a launcher
@@ -22,9 +22,9 @@ Done when: the launcher resolves the three; the revolver item appears; a bounty 
 disabling the revolver or the framework fails with a clear message; `--validate-mods` reports missing deps/assets;
 a broken Lua script does not crash the game.
 
-The **core** part of the bounty slice is implemented as `BountyBoardSystem`: bandit-faction offers, accept/abandon, player-kill progress, payment,
-the faction-tab UI and CAMERA save keys. The external `frontier.bounties` plugin and content-defined `contract` targets/rewards remain to be built on
-that base.
+The **core** part of the bounty slice is implemented as `BountyBoardSystem`: faction-group, animal-species and named non-story target offers,
+accept/abandon, progress, payment, the faction-tab UI and CAMERA/character save keys. The external `frontier.bounties` plugin, content-defined
+`contract` targets/rewards and the spawned-squad fallback remain to be built on that base.
 
 ## Layers
 
@@ -144,6 +144,6 @@ Order: data → C# → Lua. Do not build the distributor or Lua host before the 
 - Non-collectible ALC/no unload is the current C# choice; collectible contexts remain open.
 - Lua host (MoonSharp vs NLua) and whether scripts get UI hooks.
 - System anchors: before/after a `StandardParts` member instead of append-only.
-- Bounty contracts are currently faction-wide, fixed three-kill offers; content-defined targets, counts and rewards are the next data layer.
+- Contracts now have faction-group, animal-species and named-character targets; a spawned-squad fallback when no existing target is near, and content-defined targets/counts/rewards, are the next layer.
 - Whether content items map onto FCS records or a new runtime item model.
 - Workshop needs Meitou's own Steam app; a local/custom repository comes first.

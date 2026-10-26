@@ -222,6 +222,7 @@ internal static class SavedCharacters
             Role = sc.SquadMemberType,
             IsPlayer = player,
             Orders = player ? Orders.PlayerDefaults : CharacterOrders.None,
+            ContractTarget = ContractTargetSave.Read(sc.GameState),
             FootprintRadius = race?.PathfindFootprintRadius ?? 0,
             Save = new SavedCharacterLink
             {

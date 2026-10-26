@@ -414,6 +414,7 @@ public static partial class SaveCapture
             CrimeSave.Write(g, cold);
             SlaveSave.Write(g, cold, data);
             DialogueSave.Write(g, cold);
+            ContractTargetSave.Write(g, cold.ContractTarget);
             if (orders) Orders.Write(g, cold);
             if (orders && sc.Ai is { } ai) PermaJobSave.Write(ai, cold, world.Buildings, buildings, who => world.Characters.TryResolveNext(who, out int target) && world.Characters.Cold(target)?.Save is { } link2 ? link2.Source.Handle : Hand.Null);
             HeldSave.Write(g, cold, link, world.Fixtures, buildings);

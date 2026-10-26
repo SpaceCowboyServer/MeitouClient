@@ -282,6 +282,11 @@ public sealed class CharacterCold
     public float FactionImportance { get; set; }
     /// <summary>The character's bounties by faction (null: none ever); <see cref="Crime.CrimeSystem"/>, serial phases only. Hashed only while set.</summary>
     public Crime.BountyLedger? Bounties { get; set; }
+    /// <summary>
+    /// The Meitou contract whose named target this character is (a stable marker saved in its GAMESTATE_CHARACTER; null: none). Kept out of the state hash: it is
+    /// save/contract bookkeeping, not simulation state.
+    /// </summary>
+    public string? ContractTarget { get; set; }
     /// <summary>A crime nobody has booked yet (null: none); <see cref="Crime.CrimeSystem"/>, serial phases only. Hashed only while set.</summary>
     public Crime.PendingCrime? Pending { get; set; }
     /// <summary>What the AI decided for it (null: a character the AI does not run: the player's, or one whose squad has no AI packages); <see cref="Ai.AiSystem"/>.</summary>
