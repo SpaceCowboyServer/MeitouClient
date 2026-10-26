@@ -109,9 +109,10 @@ Ledgers are per wanted faction; crimes pending at deed time and witness booking 
 CONSTANTS categories define theft/assault/murder/looting values. Expiry is0.04 hours/cat and
 permanent from10000; capture, claiming, bail and prison sentences use separate paths.
 
-**Meitou engine addition:** the contract board (`BountyBoardSystem`) offers three-kill faction contracts, three-animal species culls and a named non-story
-bandit hunt; group/species progress pays on the player's killing blows, while a named target can also be caged. It is separate from the original crime
-ledger and is saved in CAMERA `meitou bounty*` plus `meitou contract target` on a named target. See [simulation](../simulation.md#crimes-and-bounties).
+**Meitou engine addition:** the contract board (`BountyBoardSystem`) offers three-kill faction contracts, three-animal species culls, a named non-story
+bandit hunt, a capture contract for a downed named target and a spawned-target fallback; group/species progress pays on the player's killing blows,
+while capture pays when the target is caged. It is separate from the original crime ledger and is saved in CAMERA `meitou bounty*` plus
+`meitou contract target` on a named target. See [simulation](../simulation.md#crimes-and-bounties).
 
 Witness/innocence details remain partly unknown; a killing is no crime (11.6), only relation events.
 Slavery/prisoner/animal transactions and loot generation are not equivalent to ordinary shop

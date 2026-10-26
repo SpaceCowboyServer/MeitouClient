@@ -209,6 +209,29 @@ public class BountyTests
     }
 
     [Fact]
+    public void A_downed_named_target_offers_capture_and_completes_when_caged()
+    {
+        using var rig = new Rig(new BountySettings { OfferRefreshTicks = 1, ViewRefreshTicks = 1, OfferAnimals = false });
+        _ = rig.Player(Vector2.Zero);
+        var target = rig.NamedBandit(new Vector2(100, 0));
+        rig.Cold(target).Medical!.KnockOut(100000);
+        rig.Run(1);
+
+        var capture = Assert.Single(rig.Board.Published.Offers, o => o.Title.StartsWith("Capture ", StringComparison.Ordinal));
+        Assert.Equal("Cage the target", capture.Detail);
+        rig.World.Commands.Enqueue(new AcceptBountyCommand(capture.Id) { Tick = rig.World.Tick });
+        rig.Run(1);
+
+        var contract = Assert.Single(rig.Board.Contracts);
+        Assert.Equal(BountyObjective.Capture, contract.Objective);
+        rig.Cold(target).InSomething = Meitou.Simulation.Locks.HeldState.Imprisoned;
+        rig.Cold(target).InWhat = "cage";
+        rig.Run(1);
+        Assert.Equal(6500, rig.World.Player.Money);
+        Assert.Equal(BountyState.Completed, contract.State);
+    }
+
+    [Fact]
     public void Offers_and_completes_an_animal_species_cull()
     {
         using var rig = new Rig(new BountySettings { OfferRefreshTicks = 1, ViewRefreshTicks = 1, OfferSpecific = false });
@@ -231,6 +254,38 @@ public class BountyTests
         rig.Board.Died(rig.World, player.Slot, third.Slot);
         Assert.Equal(3000, rig.World.Player.Money);
         Assert.Equal(BountyState.Completed, contract.State);
+    }
+
+    [Fact]
+    public void No_existing_target_offers_a_spawned_squad_and_accept_spawns_it()
+    {
+        var factions = new List<FactionData>
+        {
+            new() { Id = "player", Name = "Player", FundamentalType = FundamentalType.Civilian },
+            new() { Id = "bandits", Name = "Bandits", FundamentalType = FundamentalType.Bandit, Squads = [new RecordLink("10-t", 1, 0, 0)] },
+        };
+        var relations = FactionRelations.Build(factions);
+        relations.PlayerFaction = PlayerFaction;
+        var data = new PopulationData { Db = SyntheticTown.Database(), Sites = [], Factions = factions, PlayerFaction = PlayerFaction, Relations = relations };
+        using var population = new PopulationSystem(data, new PopulationSettings { Background = false });
+        var board = new BountyBoardSystem(data, new BountySettings { OfferRefreshTicks = 1, ViewRefreshTicks = 1, OfferSpecific = false, OfferAnimals = false })
+        {
+            Population = population,
+        };
+        using var world = new SimWorld(new WorldSettings { Seed = 1, Threads = 1, PublishSnapshots = false }, new OpenGroundWalkability((_, _) => 0), [board]);
+        world.Characters.Spawn(new CharacterHot { Position = Vector3.Zero, Health = 100 },
+            new CharacterCold { Name = "hero", Faction = PlayerFaction, IsPlayer = true, Medical = new MedicalState([]), Fighter = new Fighter(null) }, 0);
+        world.RunTicks(1);
+
+        var offer = Assert.Single(board.Published.Offers);
+        Assert.Equal("spawn:bandits", offer.Id);
+        world.Commands.Enqueue(new AcceptBountyCommand(offer.Id) { Tick = world.Tick });
+        world.RunTicks(1);
+
+        var contract = Assert.Single(board.Contracts);
+        Assert.Equal(BountyTargetKind.Spawned, contract.Kind);
+        Assert.True(contract.TargetMarker is { Length: > 0 });
+        Assert.Contains(Enumerable.Range(0, world.Characters.HighWater), slot => world.Characters.Cold(slot)?.ContractTarget == contract.TargetMarker);
     }
 
     [Fact]

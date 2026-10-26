@@ -23,8 +23,8 @@ public sealed class BountyContract
     public required string Id { get; init; }
     public required BountyTargetKind Kind { get; init; }
     public required BountyObjective Objective { get; init; }
-    public required string Title { get; init; }
-    public required string TargetName { get; init; }
+    public required string Title { get; set; }
+    public required string TargetName { get; set; }
     /// <summary>The animal or character record the target belongs to (null for a faction contract).</summary>
     public string? TargetRecord { get; init; }
     /// <summary>The stable marker on a specific character (null for group/species contracts).</summary>
@@ -77,10 +77,16 @@ public sealed record BountySettings
     public int AnimalKills { get; init; } = 3;
     public int AnimalReward { get; init; } = 3000;
     public int SpecificReward { get; init; } = 5000;
+    public int CaptureReward { get; init; } = 6500;
+    public int SpawnReward { get; init; } = 6000;
     /// <summary>Offer a hunt for one existing non-story bandit when one is near.</summary>
     public bool OfferSpecific { get; init; } = true;
     /// <summary>Offer a cull of one animal species when its members are near.</summary>
     public bool OfferAnimals { get; init; } = true;
+    /// <summary>When no existing target is near, offer a target squad spawned on accept (needs a population).</summary>
+    public bool OfferSpawned { get; init; } = true;
+    /// <summary>Where a spawned target squad appears from the player (X/Z units).</summary>
+    public float SpawnDistance { get; init; } = 1500;
     public float OfferRange { get; init; } = 20000;
     public int MaxOffers { get; init; } = 3;
     /// <summary>Ticks between looks for new offers.</summary>
@@ -106,6 +112,8 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
     public BountySettings Settings => settings;
     public IReadOnlyList<BountyContract> Contracts => contracts;
     public BountyBoardView Published => published;
+    /// <summary>The population used to spawn a fallback contract target; null: no spawned offers.</summary>
+    public PopulationSystem? Population { get; set; }
 
     public void Inputs(World world, IReadOnlyList<SimCommand> commands)
     {
@@ -180,13 +188,26 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         int at = offers.FindIndex(o => o.Id == id);
         if (at < 0 || contracts.Exists(c => c.Id == id)) return;
         var offer = offers[at];
-        if (offer.Kind is BountyTargetKind.Character or BountyTargetKind.Spawned)
+        string? spawnedName = null;
+        if (offer.Kind == BountyTargetKind.Character)
         {
             if (!TryFindTarget(world, offer.Target, out _, out var target) || target.ContractTarget is not null || target.IsImprisoned || target.Medical is not { Dead: false }) return;
             SetMarker(target, offer.TargetMarker!);
         }
+        else if (offer.Kind == BountyTargetKind.Spawned)
+        {
+            if (Population is null || offer.TargetRecord is not { } record || offer.TargetMarker is not { } marker) return;
+            var players = PlayerPositions(world);
+            if (players.Count == 0) return;
+            float x = players[0].X + settings.SpawnDistance;
+            var members = Population.SpawnSandboxSquad(world, record, new Vector2(x, players[0].Z),
+                [Vector2.Zero, new(3, 0), new(6, 0)], 0, 0, offer.Faction);
+            if (members.Count == 0 || !TryFindTarget(world, members[0], out _, out var target) || target.ContractTarget is not null) return;
+            SetMarker(target, marker);
+            spawnedName = target.Name;
+        }
         offers.RemoveAt(at);
-        contracts.Add(new BountyContract
+        var contract = new BountyContract
         {
             Id = offer.Id,
             Kind = offer.Kind,
@@ -199,8 +220,14 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             FactionId = offer.FactionId,
             Required = offer.Required,
             Reward = offer.Reward,
-        });
-        world.Post($"Bounty accepted: {offer.Title}");
+        };
+        if (spawnedName is { Length: > 0 })
+        {
+            contract.Title = "Hunt " + spawnedName;
+            contract.TargetName = spawnedName;
+        }
+        contracts.Add(contract);
+        world.Post($"Bounty accepted: {contract.Title}");
         Publish(world);
     }
 
@@ -221,7 +248,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         offers.RemoveAll(o => float.IsPositiveInfinity(OfferDistance(world, o, players)));
         if (offers.Count < settings.MaxOffers && settings.OfferSpecific && !HasKind(BountyTargetKind.Character))
             if (FindSpecificTarget(world, players) is { } target) offers.Add(CharacterOffer(target, world.Seed));
-        if (offers.Count < settings.MaxOffers && settings.OfferAnimals && !HasKind(BountyTargetKind.AnimalSpecies))
+        if (offers.Count < settings.MaxOffers && settings.OfferAnimals && !HasKind(BountyTargetKind.AnimalSpecies) && !HasContract(BountyTargetKind.AnimalSpecies))
             if (FindAnimalSpecies(world, players) is { } species) offers.Add(AnimalOffer(species, data));
         if (offers.Count < settings.MaxOffers)
         {
@@ -241,11 +268,15 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
                 offers.Add(FactionOffer(faction));
             }
         }
+        if (offers.Count == 0 && settings.OfferSpawned && !HasKind(BountyTargetKind.Spawned) && !HasContract(BountyTargetKind.Spawned) && FindSpawnTarget(world, players) is { } spawn)
+            offers.Add(SpawnOffer(spawn, world.Seed));
         Publish(world);
     }
 
     bool HasKind(BountyTargetKind kind) =>
         offers.Exists(o => o.Kind == kind) || contracts.Exists(c => c.Kind == kind && c.State == BountyState.Accepted);
+
+    bool HasContract(BountyTargetKind kind) => contracts.Exists(c => c.Kind == kind);
 
     BountyOffer FactionOffer(int faction) => new(
         data.Factions[faction].Id, BountyTargetKind.Faction, BountyObjective.Kill, data.Factions[faction].Name, data.Factions[faction].Name,
@@ -258,13 +289,43 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             $"{settings.AnimalKills} animals", species.Record, null, CharacterId.None, -1, "", settings.AnimalKills, settings.AnimalReward);
     }
 
+    BountyOffer SpawnOffer(SpawnCandidate spawn, ulong seed) => new(
+        "spawn:" + spawn.FactionId, BountyTargetKind.Spawned, BountyObjective.Kill, "Hunt a " + spawn.FactionName, spawn.FactionName,
+        "Kill the target", spawn.RecordId, $"spawn:{seed}:{spawn.FactionId}", CharacterId.None, spawn.Faction, spawn.FactionId, 1, settings.SpawnReward);
+
+    SpawnCandidate? FindSpawnTarget(World world, List<Vector3> players)
+    {
+        if (Population is null || players.Count == 0) return null;
+        for (int f = 0; f < data.Factions.Count; f++)
+        {
+            var faction = data.Factions[f];
+            if (faction.FundamentalType != FundamentalType.Bandit || faction.NotReal) continue;
+            foreach (var link in faction.Squads.Concat(faction.SquadDefault).Concat(faction.SpecialSquads).Concat(faction.Residents))
+            {
+                if (data.Db.Find(link.Id) is not { } record || !SquadFactory.IsTemplate(record)) continue;
+                var template = SquadTemplate.From(record);
+                var plan = SquadFactory.Plan(data.Db, template, 1, world.Seed,
+                    Rng.Hash(world.Seed, Rng.StableHash(template.Id), RngPurpose.Spawn), data.States);
+                var member = plan.Members.FirstOrDefault(m => !m.IsAnimal && data.Db.Find(m.RecordId) is { } r && !Meitou.Simulation.UniqueCharacters.IsUnique(r));
+                if (member is not null) return new SpawnCandidate(f, faction.Id, faction.Name, member.RecordId);
+            }
+        }
+        return null;
+    }
+
+    readonly record struct SpawnCandidate(int Faction, string FactionId, string FactionName, string RecordId);
+
     BountyOffer CharacterOffer((CharacterId Id, CharacterCold Cold, float Distance) target, ulong seed)
     {
         string marker = $"hunt:{seed}:{target.Id.Slot}:{target.Id.Generation}";
         int faction = target.Cold.Faction;
         string factionId = (uint)faction < (uint)data.Factions.Count ? data.Factions[faction].Id : "";
-        return new(marker, BountyTargetKind.Character, BountyObjective.Kill, "Hunt " + target.Cold.Name, target.Cold.Name, "Kill the target",
-            target.Cold.RecordId, marker, target.Id, faction, factionId, 1, settings.SpecificReward);
+        bool capture = target.Cold.Medical is { Incapacitated: true };
+        string verb = capture ? "Capture " : "Hunt ";
+        string detail = capture ? "Cage the target" : "Kill the target";
+        int reward = capture ? settings.CaptureReward : settings.SpecificReward;
+        return new(marker, BountyTargetKind.Character, capture ? BountyObjective.Capture : BountyObjective.Kill, verb + target.Cold.Name, target.Cold.Name, detail,
+            target.Cold.RecordId, marker, target.Id, faction, factionId, 1, reward);
     }
 
     void Publish(World world)
@@ -285,7 +346,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         BountyTargetKind.Faction => NearestFaction(world, offer.Faction, players),
         BountyTargetKind.AnimalSpecies => NearestAnimal(world, offer.TargetRecord, players),
         BountyTargetKind.Character => NearestCharacter(world, offer.Target, players),
-        BountyTargetKind.Spawned => NearestMarker(world, offer.TargetMarker, players),
+        BountyTargetKind.Spawned => players.Count == 0 ? float.PositiveInfinity : settings.SpawnDistance,
         _ => float.PositiveInfinity,
     };
 

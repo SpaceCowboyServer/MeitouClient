@@ -268,6 +268,7 @@ public static class StandardSystems
         if (Has(StandardParts.Bounties))
         {
             systems.Add(bounties = new Meitou.Simulation.Bounties.BountyBoardSystem(data, o.Bounties));
+            if (population is not null) bounties.Population = population;
             if (combat is not null) combat.Deaths = bounties;
         }
         return new StandardSystemSet { Systems = systems, Population = population, Movement = movement, Combat = combat, Aggro = aggro, Carry = carry, Kidnap = kidnap, Captives = captives, Crime = crime, Arrest = arrest, Locks = locks, Beds = beds, Trade = trade, Ai = ai, Construction = construction, Production = production, Bounties = bounties, Ragdolls = ragdolls, Dialogue = talk };

@@ -22,9 +22,9 @@ Done when: the launcher resolves the three; the revolver item appears; a bounty 
 disabling the revolver or the framework fails with a clear message; `--validate-mods` reports missing deps/assets;
 a broken Lua script does not crash the game.
 
-The **core** part of the bounty slice is implemented as `BountyBoardSystem`: faction-group, animal-species and named non-story target offers,
-accept/abandon, progress, payment, the faction-tab UI and CAMERA/character save keys. The external `frontier.bounties` plugin, content-defined
-`contract` targets/rewards and the spawned-squad fallback remain to be built on that base.
+The **core** part of the bounty slice is implemented as `BountyBoardSystem`: faction-group, animal-species, named non-story and fallback spawned-target
+offers, accept/abandon, progress, payment, the faction-tab UI and CAMERA/character save keys. The external `frontier.bounties` plugin and content-defined
+`contract` targets/rewards remain to be built on that base; rank/progression is deliberately later.
 
 ## Layers
 
@@ -120,7 +120,7 @@ Dependency direction: `Api` references the public Data/Simulation types (direct 
 | 1 | Manifest discovery, resolver, profiles/lockfile, launcher display | three mods resolve; cycles/missing deps reported |
 | 2 | VFS, asset pipeline, content registry/validation | revolver content/assets validate data-only; missing assets fail validation |
 | 3 | API facade + C# host/adapters | plugin loads, registers services/systems and saves sidecars |
-| 4 | Bounty vertical slice | **done (core):** accept/track/complete/save; missing saved factions dropped safely |
+| 4 | Bounty vertical slice | **done (gameplay):** faction/animal/named/spawned offers, capture, save; external sample plugin/content in Stage 7 |
 | 5 | Lua host/sandbox | Lua bounty content; broken script isolated |
 | 6 | Save/lifecycle/diagnostics | remove mod, safe mode, `--validate-mods` |
 | 7 | SDK/docs/distribution | mod template; local repo; Workshop later |
@@ -144,6 +144,6 @@ Order: data → C# → Lua. Do not build the distributor or Lua host before the 
 - Non-collectible ALC/no unload is the current C# choice; collectible contexts remain open.
 - Lua host (MoonSharp vs NLua) and whether scripts get UI hooks.
 - System anchors: before/after a `StandardParts` member instead of append-only.
-- Contracts now have faction-group, animal-species and named-character targets; a spawned-squad fallback when no existing target is near, and content-defined targets/counts/rewards, are the next layer.
+- Contracts have faction-group, animal-species, named-character and fallback spawned targets; content-defined targets/counts/rewards and rank/progression are later content/UI layers.
 - Whether content items map onto FCS records or a new runtime item model.
 - Workshop needs Meitou's own Steam app; a local/custom repository comes first.
