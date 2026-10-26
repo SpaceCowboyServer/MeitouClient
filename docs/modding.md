@@ -34,6 +34,14 @@ a broken Lua script does not crash the game.
 | Lifecycle/save | mod list/versions in save, sidecar state, safe mode |
 | Launcher/tooling | mod list, deps, conflicts, profiles, `meitou-tools mod` |
 
+## Principles
+
+- Data first; code only when data cannot express the behavior.
+- One asset pipeline and one content registry; IDs, not raw paths.
+- Prefer capabilities over engine internals; direct simulation access is a documented exception while the facade grows.
+- Target 80% data mods, 15% scripts, 5% plugins. Add a core system only when the game or several mods need it;
+  otherwise use a plugin.
+
 ## Manifest, versions, trust
 
 `meitou.json` is JSON (source-generated; the launcher is Native AOT). Content uses `content/*.yaml` (game-side).
@@ -72,35 +80,26 @@ Meitou-specific code, content schemas and assets.
 - Asset pipeline: importers per type, typed handles, async load/cache, ref-count, validation.
 - The engine owns loading; mod code gets handles/services. Shaders, native formats and world data are later.
 
+## API surface (v1 target)
+
+The API is a facade over the game's systems, used by data, C# and Lua:
+
+- **Core services:** `IWorldQuery`, `IEvents`, `ICommands`, `IScheduler`, `ISave`, `IAssets`, `IContent`, `IUi`
+  (core UI/notifications, not mod-drawn panels in v1), `IAudio`, `ILocalization`, `IServices`, `ILog`.
+- **Domain services:** contracts/quests, dialogue, factions/reputation, economy, combat, AI, inventory/building/law as
+  those systems exist.
+- C# mods implement `IMod` and receive `IModContext`; Lua receives the same services. `Meitou.Modding.Api` owns the
+  contracts/DTOs/IDs; `Meitou.Game` owns the adapters. A plugin may expose its own service to content packs, with a
+  declared dependency/API version.
+
 ## Code
 
 ### C# (first)
 
-The current concept is the first implementation; the rest of this plan does not replace it:
-
-- Discovery: a folder with `meitou.json` (`id`, `apiVersion`, `assemblies`, `entry`). `ModInfo` reports code mods next
-  to `HasNativePlugin`; the launcher shows them. Load set = enabled `mods.cfg` entries with a manifest; a disabled
-  mod's DLL is never opened.
-- Loading: one non-collectible `AssemblyLoadContext` per mod, loaded once. `Meitou.*` and shared third-party assemblies
-  resolve from the default context; other dependencies come from the mod folder. No unload/hot reload. The game stays
-  JIT (no trim/AOT); the launcher AOT is unaffected. Mods compile against the release's `Meitou.*.dll` and
-  `Meitou.Modding.dll`.
-- Lifecycle: `IMod.Initialize(ModContext)`; the type comes from `entry` (no reflection scan). Runs after data merge,
-  before `StandardSystems.Build` returns, in `mods.cfg` order. `ModContext` exposes the merged `GameData`, mod folder,
-  logger, mod-scoped `Rng` salt, `Enqueue(SimCommand)` and registrations. A throwing `Initialize` disables that mod.
-- Extension points: tick systems at `StandardParts` anchors (`IStateHashed` feeds `World.StateHash`); dialogue
-  condition/effect registries for codes above vanilla; console/`SimCommand` commands; custom FCS record types
-  (merge/save survival is unknown until tested). No UI/rendering hooks in the first version; core UI may read mod
-  data/services.
-- Determinism: mod systems follow [simulation](simulation.md) threading; parallel phases write only their partition's
-  `Next`, read `Previous`/grid, use `EffectBuffer`; randomness via `Rng.Hash` with the mod salt; no `World` access
-  outside the tick; input through `Enqueue`. A double-run `StateHash` debug mode would catch violations.
-- Persistence: vanilla saves stay byte-exact; mod state goes in a sidecar per mod keyed by manifest id
-  (`ISaveable.Write/Read`). A save without the mod keeps the sidecar; the original game ignores it.
-- Versioning/trust: the contract assembly covers lifecycle, registration and persistence; mods reference
-  `Meitou.Simulation` directly for `World`/`CharacterTable`/`EffectBuffer` (facade-only is open). `apiVersion` mismatch
-  refuses the mod. A workshop DLL is arbitrary code: the launcher marks it, the game confirms each new one on first
-  run; no sandbox.
+The detailed C# contract is preserved in [modding-csharp](modding-csharp.md): `meitou.json` discovery, one
+non-collectible `AssemblyLoadContext` per mod, `IMod.Initialize(ModContext)` after data merge, simulation-only
+extension points, the determinism rules, sidecar saves, versioning and trust. This plan adds dependencies, data/assets,
+Lua and the launcher around that contract; it does not replace the C# loading/lifecycle decisions yet.
 
 ### Lua (later)
 

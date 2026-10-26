@@ -27,6 +27,7 @@ used as a naming reference for our 1.0.68 analysis; they are **Observed** until 
 - [metal-effects-parity-plan](metal-effects-parity-plan.md): MEP-I, the remaining Metal effect-parity milestones and ship gates
 - [meitou-ui](meitou-ui.md): UI kit for the Meitou UI mode
 - [modding](modding.md): the modding foundation plan (manifest, dependencies, data/assets, C#/Lua, trust, phases)
+- [modding-csharp](modding-csharp.md): the current C# mod loading/lifecycle contract
 - [native-ui](native-ui.md)
 - [render-clouds](render-clouds.md)
 - [render-distance-benchmark](render-distance-benchmark.md)
