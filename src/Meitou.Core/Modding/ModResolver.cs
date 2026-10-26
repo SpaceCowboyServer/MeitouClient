@@ -14,7 +14,13 @@ public sealed class ModResolveOptions
 
 public enum ModIssueSeverity { Warning, Error }
 
-public sealed record ModIssue(ModIssueSeverity Severity, string Code, string Message, string? ModId = null, string? FolderName = null);
+public sealed record ModIssue(
+    ModIssueSeverity Severity,
+    string Code,
+    string Message,
+    string? ModId = null,
+    string? FolderName = null,
+    string? File = null);
 
 /// <summary>The enabled mods in load order, plus every problem found while resolving them.</summary>
 public sealed record ModResolution(

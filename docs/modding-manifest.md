@@ -82,7 +82,8 @@ The mods are in load order. The hash currently covers only `meitou.json`; conten
 
 ## Not implemented
 
-- Content YAML and asset roots are validated as paths but not read.
+- Content YAML and asset roots are mounted and validated by `Meitou.Modding` ([modding-content](modding-content.md)), but their
+  definitions do not affect gameplay yet.
 - C# assemblies and Lua entries are not loaded.
 - Manifest-only mod folders (no `<name>.mod`) are not discovered yet.
 - The launcher does not write a lockfile or offer automatic dependency enabling yet.

@@ -1,8 +1,8 @@
 # Modding foundation
 
-**Status: manifest/discovery/resolver/lockfile foundation implemented (2026-10-26); content, assets, C#/Lua loading and save
-integration are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay ignored.
-Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
+**Status: manifest/resolver, VFS/content validation and startup validation implemented (2026-10-26); applying content to gameplay,
+C#/Lua loading and save integration are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs
+stay ignored. Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
 
 Goal: a data-first modding foundation with a stable API, compiled C# extensions first, Lua later, and a launcher
 that resolves dependencies, load order and trust. Non-goals for v1: RE_Kenshi binary compatibility, native plugins,
@@ -55,11 +55,13 @@ use `modid:category/name`, and the launcher refuses Play on missing/disabled dep
 
 ## Data and assets
 
+The implemented VFS, asset IDs/kinds, YAML content registry and validation are in [modding-content](modding-content.md).
+The engine owns loading; mod code gets handles/services. Shaders, native formats and world data are later.
+
 - `content/` YAML: items, factions, contracts, dialogue, localization; schema + validator; stable IDs.
 - `assets/`: textures, meshes, audio, fonts, UI sprites; referenced by ID, never raw paths.
 - VFS mounts mod roots in load order; later overrides earlier; conflicts are reported.
-- Asset pipeline: importers per type, typed handles, async load/cache, ref-count, validation.
-- The engine owns loading; mod code gets handles/services. Shaders, native formats and world data are later.
+- Asset pipeline: importers per type, typed handles, sync load/cache/ref-count today; async/streaming later.
 
 ## API surface (v1 target)
 
@@ -111,7 +113,7 @@ the launcher uses `Core` only and loads no mod code.
 |---|---|---|
 | 0 | Spec, sample manifests/content, ID/version/trust rules | docs + samples |
 | 1 | Manifest discovery, resolver, profiles/lockfile, launcher display | three mods resolve; cycles/missing deps reported |
-| 2 | VFS, asset pipeline, content registry/validation | revolver loads data-only; missing assets fail validation |
+| 2 | VFS, asset pipeline, content registry/validation | revolver content/assets validate data-only; missing assets fail validation |
 | 3 | API facade + C# host/adapters | bounty framework loads, registers, saves |
 | 4 | Bounty vertical slice | accept/track/complete/save; dependency failures safe |
 | 5 | Lua host/sandbox | Lua bounty content; broken script isolated |
@@ -137,4 +139,5 @@ Order: data → C# → Lua. Do not build the distributor or Lua host before the 
 - Non-collectible ALC/no unload is the current C# choice; collectible contexts remain open.
 - Lua host (MoonSharp vs NLua) and whether scripts get UI hooks.
 - Whether mods reference `Meitou.Simulation` directly or only the facade.
+- Whether content items map onto FCS records or a new runtime item model.
 - Workshop needs Meitou's own Steam app; a local/custom repository comes first.

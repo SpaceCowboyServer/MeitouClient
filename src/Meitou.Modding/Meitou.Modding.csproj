@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    JIT-only content layer: VFS, typed asset IDs, YAML content and the asset cache. The launcher must not reference this project
+    because it is Native AOT; the manifest/resolver types it uses live in Meitou.Core.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Meitou.Core\Meitou.Core.csproj" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
+  </ItemGroup>
+</Project>

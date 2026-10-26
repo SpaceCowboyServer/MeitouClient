@@ -110,6 +110,7 @@ Used as packages (not copied into this repository); each is distributed under it
 | Velopack 1.2.161 | `launcher/Meitou.Launcher` (install and self-update) | MIT |
 | Markdig 1.4.2 | `launcher/Meitou.Launcher` (news posts) | BSD-2-Clause |
 | NVorbis 0.10.5 | `src/Meitou.Data`, `src/Meitou.Audio`, `launcher/Meitou.Launcher` (news video sound) | MIT |
+| YamlDotNet 18.1.0 | `src/Meitou.Modding` (content YAML) | MIT |
 | Silk.NET.OpenAL.Soft.Native 1.23.1 (ships OpenAL Soft: `soft_oal.dll`, `libopenal.so`, `libopenal.dylib`) | `src/Meitou.Audio`, `launcher/Meitou.Launcher` (news video sound; a separate library, loaded at run time) | LGPL-2.1-or-later (OpenAL Soft) |
 
 The DDS reader and decoder (`src/Meitou.Data/Textures/`) are written from Microsoft's public DDS and

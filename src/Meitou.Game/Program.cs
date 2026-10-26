@@ -1,5 +1,6 @@
 using System.Numerics;
 using Meitou.Content;
+using Meitou.Modding;
 using Meitou.Rendering;
 
 namespace Meitou.Game;
@@ -57,6 +58,9 @@ static class Program
             Console.Error.WriteLine($"Kenshi install not found: set {GameInstall.EnvironmentVariable} or create {GameInstall.LocalConfigFile}.");
             return 1;
         }
+        // Meitou mods are validated before any window or world work. Content/assets are not applied to gameplay yet, but a missing
+        // dependency, manifest, content file or asset must fail here rather than silently starting an incomplete setup.
+        if (!ValidateMods(install)) return 1;
         // Steamworks must start before Vulkan creates its device so Steam can hook the renderer for Shift+Tab. Not for pictures or a
         // listing: those must not count as Kenshi play time or get the overlay.
         using var steam = world.Screenshot is null && !game.ListStarts ? SteamSession.TryStart(install) : null;
@@ -186,5 +190,19 @@ static class Program
         using var scene = WorldFrame.Load(install, world, db);
         if (scene is null) return 1;
         return new GameHost(install, scene, new AssetLocator(install), world, game, config, start) { StartSave = save }.Run();
+    }
+
+    static bool ValidateMods(GameInstall install)
+    {
+        var bundle = ModContentBundle.Load(ModDiscovery.Resolve(install));
+        if (!bundle.Success)
+        {
+            foreach (var issue in bundle.Errors)
+                Console.Error.WriteLine($"mods: {issue.Code}: {issue.Message}");
+            return false;
+        }
+        foreach (var issue in bundle.Warnings)
+            Console.WriteLine($"mods: warning: {issue.Code}: {issue.Message}");
+        return true;
     }
 }

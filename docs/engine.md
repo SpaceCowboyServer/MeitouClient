@@ -1,7 +1,7 @@
 # Engine architecture
 
 Projects: Core installation; Data clean-room readers/typed game data; Simulation headless world;
-Navigation own navmesh; Engine WorldSession/time/input/camera; Rendering Vulkan/content/streaming;
+Navigation own navmesh; Modding JIT VFS/content/assets; Engine WorldSession/time/input/camera; Rendering Vulkan/content/streaming;
 Rendering.Display window/device/presenter; Game host/UI; ModelViewer debug world/atlas; Tools surveys.
 GPU and simulation ownership stay separate. [Simulation contracts](simulation.md),
 [native renderer](renderer-native.md), [viewer controls](viewer.md).

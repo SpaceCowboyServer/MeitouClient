@@ -30,6 +30,9 @@ static class ModFixtures
     public static ModCandidate Candidate(string folder, ModManifest manifest) =>
         new(folder, "/mods/" + folder, manifest, new string('a', 64));
 
+    public static ModCandidate CandidateAt(string folder, string fullPath, ModManifest manifest) =>
+        new(folder, fullPath, manifest, new string('a', 64));
+
     public static string ManifestJson(string id, string version = "1.0.0", string extra = "") => $$"""
         {
           "id": "{{id}}",
