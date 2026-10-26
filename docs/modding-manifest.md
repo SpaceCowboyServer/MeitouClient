@@ -84,7 +84,7 @@ The mods are in load order. The hash currently covers only `meitou.json`; conten
 
 - Content YAML and asset roots are mounted and validated by `Meitou.Modding` ([modding-content](modding-content.md)), but their
   definitions do not affect gameplay yet.
-- C# assemblies and Lua entries are not loaded.
+- C# `plugin` assemblies load through [modding-csharp](modding-csharp.md); Lua `script` entries do not load yet.
 - Manifest-only mod folders (no `<name>.mod`) are not discovered yet.
 - The launcher does not write a lockfile or offer automatic dependency enabling yet.
-- Saves do not record the lockfile yet.
+- Saves record mod state in `meitou-mods/<id>.bin` sidecars, not in the vanilla save or a lockfile.

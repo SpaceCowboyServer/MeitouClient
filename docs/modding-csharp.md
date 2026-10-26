@@ -1,76 +1,83 @@
-# C# modding API (preliminary concept)
+# C# modding API
 
-**Status: concept, not decided (2026-10-25).** Nothing here is implemented. It is Meitou's own interface; the
-RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands and its DLLs stay ignored. Managed DLLs run unchanged
-on the Windows, Linux and macOS builds. This is the current C# contract; the broader plan around it is
-[modding](modding.md).
+**Status: Phase 3 host implemented (2026-10-26).** Enabled `trust: plugin` mods load after the data merge, register services/systems/
+saveables and are validated at startup. Lua is not implemented, and RE_Kenshi DLLs stay ignored ([rekenshi](formats/rekenshi.md)).
+The game remains a JIT build; the Native AOT launcher loads no mod code.
 
-## Discovery
+## Discovery and loading
 
-- A mod carries code when its folder (next to the `.mod`) has `meitou.json`:
-  `{ "id", "apiVersion", "assemblies": ["Foo.dll"], "entry": "Foo.FooMod" }`. A mod may carry both `meitou.json`
-  and `RE_Kenshi.json`.
-- `ModInfo` reports it beside `HasNativePlugin`; the launcher shows which mods carry code.
-- Load set: the enabled mods of `mods.cfg` (`ModList.ReadEnabled`) in order, filtered to those with a manifest.
-  A disabled mod's DLL is never opened. Enabling and disabling take effect at the next launch, like data mods.
-
-## Loading
-
-- One non-collectible `AssemblyLoadContext` per mod, loaded once at startup. Resolution: an assembly already in
-  the default context (`Meitou.*`, the framework, shared third-party such as Bepu) comes from there, so a mod never
-  holds a private copy of engine types; anything else comes from the mod folder, so two mods may ship different
-  versions of the same library.
-- No unload and no hot reload: the systems are held by reference and registered delegates would keep a collectible
-  context alive.
-- Constraint: the game must stay a JIT publish (self-contained, never `PublishTrimmed` or `PublishAot`). The
-  launcher's AOT is unaffected; it loads no mod code.
-- Mods compile against the release's `Meitou.*.dll` and a small `Meitou.Modding.dll` contract assembly.
+- A mod carries code when its folder (next to the `.mod`) has `meitou.json` with `"trust": "plugin"`, at least one `assemblies` path and
+  an `entry` type. A mod may also carry `RE_Kenshi.json`; those DLLs are ignored.
+- `ModPluginHost` loads the enabled mods from `ModResolution.Order`; disabled mods' DLLs are never opened. A missing assembly, missing
+  entry type, API mismatch or throwing `Initialize` logs an error and skips that mod; the others load.
+- One non-collectible `AssemblyLoadContext` per mod, loaded once. Resolution tries the default context first, so `Meitou.*` and shared
+  framework assemblies keep one type identity; other dependencies come from DLLs under the mod folder. No unload, no hot reload.
+- The game must stay JIT (self-contained, never `PublishTrimmed`/`PublishAot`). Mods compile against the release's `Meitou.Modding.Api.dll`,
+  `Meitou.Simulation.dll`, `Meitou.Data.dll` and `Meitou.Core.dll`.
 
 ## Lifecycle
 
-- `IMod.Initialize(ModContext)` in `Meitou.Modding`; the type comes from the manifest's `entry`, no reflection scan.
-- Runs after the data load and mod merge, inside the wiring at `GameHost.Saving.cs` before `StandardSystems.Build`
-  returns, in `mods.cfg` order (later mods see earlier registrations, like data overrides).
-- `ModContext`: the merged `GameData`, the mod folder, a logger, a mod-scoped `Rng` purpose salt (hash of the
-  manifest id), `Enqueue(SimCommand)`, and the registration surface below.
+- `IMod.Initialize(IModContext)` in `Meitou.Modding.Api`; the type comes from the manifest's `entry` (no reflection scan).
+- The host runs in `GameHost.BootSimulation`, after the game-data merge and population data are ready, before `StandardSystems.Build`.
+  Registration does not run for a no-population or flat sandbox world.
+- `IModContext` exposes the merged `GameDatabase`, folder, version, API version, a stable `RandomSalt`, `IModLog` and `IModServices`.
 - A throwing `Initialize` disables that mod for the session and logs; it does not stop the game.
 
-## Extension points (first version: simulation only)
+## Registration
 
-- **Tick systems:** `AddSystem(ITickSystem, Anchor)` with `Anchor` = before/after a `StandardParts` member.
-  `StandardSystems.Build` stays the single wiring authority and splices mod systems at anchors. `IStateHashed`
-  puts a system's state into `World.StateHash`. Open: anchors from the start, or append-only first (simpler to
-  keep deterministic across mod order).
-- **Dialogue conditions and effects:** `DialogueSystem.Condition` is a switch on numeric codes today; mods would
-  need a registry for codes above the vanilla range, referenced from FCS data. Open: conditions only, or effects too.
-- **Commands:** console commands (`GameConsole`) and the mod's own `SimCommand` types, handled in its system's `Inputs`.
-- **Custom FCS record types:** `FcsRecord` keeps unknown int types with their properties, so loading works; survival
-  through merge and save is **Unknown** until tested.
-- No UI or rendering hooks in the first version.
+```csharp
+public interface IMod { void Initialize(IModContext context); }
 
-## Determinism contract
+public interface IModContext
+{
+    string Id { get; }
+    string Version { get; }
+    string Folder { get; }
+    int ApiVersion { get; }
+    GameDatabase Data { get; }
+    ulong RandomSalt { get; }
+    IModLog Log { get; }
+    IModServices Services { get; }
+    void AddSystem(Func<ITickSystem> factory);
+    void AddSaveable(ISaveable saveable);
+    void Enqueue(SimCommand command);
+}
+```
 
-Mod systems obey the rules of [simulation](simulation.md) "Threading": parallel phases write only their partition's
-`Next`, read `Previous` and the grid, send cross-character effects through `EffectBuffer`; randomness through
-`Rng.Hash` with the mod's salt; no `World` access outside the tick (tick-ahead runs on `Meitou.Tick` during the
-draw), outside input goes through `Enqueue`. Violations break golden hashes and any future replay. A debug mode that
-runs a mod system twice and compares `StateHash` would catch most offenders.
+- **Systems:** `AddSystem(Func<ITickSystem>)` appends a factory after the standard systems. The factory runs once for each new world, in
+  mod load order and registration order; the first version has no before/after anchors. Plugin systems obey the determinism contract in
+  [simulation](simulation.md) "Threading": parallel phases write only their partition's `Next`, use `EffectBuffer` for cross-character
+  effects, and take randomness from `Rng.Hash` with `RandomSalt` mixed into the key.
+- **Commands:** `Enqueue` goes straight to `World.Commands` once a world exists; before the first world it is held and flushed when the
+  world is attached. Commands still carry the usual required `Tick`.
+- **Services:** a string-keyed registry shared by the loaded mods (`Provide`, `TryGet`, `Get<T>`). Earlier mods register first; a duplicate
+  key is an error. Typed services work when both mods reference the same contract assembly loaded in the default context. Cross-mod
+  private contract assemblies are not unified yet.
+- **Logging:** `Info`/`Warn`/`Error` write to the game's console/log with the mod ID.
 
-## Persistence
+## Saves
 
-Vanilla save files stay byte-exact ([save](formats/save.md)). Mod state goes in a sidecar file per mod in the save
-folder, keyed by manifest id (`ISaveable.Write/Read(Stream)`). A save loaded without the mod keeps the sidecar; the
-original game ignores it, so saves stay portable.
+- `ISaveable` is one stable-keyed stream per mod state:
+  ```csharp
+  public interface ISaveable
+  {
+      string Key { get; }
+      void Write(Stream stream);
+      void Read(Stream stream);
+  }
+  ```
+- All saveables of a mod are written into `<save>/meitou-mods/<mod id>.bin`. Capture happens on the tick thread during a save; the file is
+  written by the save worker. A load reads and applies the sidecars before the next world's systems are built. The files sit outside the
+  known save files; whether the original game ignores them is **Unknown** until tested.
+- Missing sidecars leave the mod's state at its defaults; a missing key or malformed file logs and leaves the rest of the load alone.
+- The sidecar has a magic/format header and 16 MiB per-mod limit. It is not part of `quick.save`; the vanilla save remains byte-exact.
 
-## Versioning
+## Not implemented
 
-Tension: exposing `Meitou.Simulation` directly (every refactor breaks mods) against a stable contract (slow to grow,
-the world ends up mirrored behind accessors). Choice: the contract assembly for lifecycle, registration and
-persistence; mods reference `Meitou.Simulation` directly for `World`, `CharacterTable`, `EffectBuffer`. The manifest's
-`apiVersion` is checked against the game's; a mismatch refuses the mod with a message. Compatibility is per game
-version. Open: ship `Meitou.*` reference assemblies with each release so modders build without a game install.
-
-## Trust
-
-A workshop DLL is arbitrary code running as the user, as with RE_Kenshi. The launcher marks code mods and the game
-confirms each new one on first run. No sandboxing: .NET has none, and claiming one would be worse than saying so.
+- Before/after `StandardParts` anchors; every mod system is appended.
+- Dialogue condition/effect registries, console/`SimCommand` command registration, and custom FCS record types.
+- UI or rendering hooks.
+- Lua and the `script` trust tier.
+- Collectible contexts, unload and hot reload.
+- Merging separately loaded private contract assemblies for typed cross-mod services.
+- Automatic dependency installation and save migration when a mod is removed or upgraded.

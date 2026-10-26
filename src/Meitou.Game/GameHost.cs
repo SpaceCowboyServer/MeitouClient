@@ -11,6 +11,7 @@ using Meitou.Rendering.Characters;
 using Meitou.Simulation;
 using Meitou.Rendering.Gpu;
 using Meitou.Rendering.Display;
+using Meitou.Modding.Plugins;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
 using EngineKey = Meitou.Engine.Input.Key;
@@ -39,6 +40,7 @@ sealed partial class GameHost(GameInstall install, WorldScene scene, AssetLocato
     Meitou.Simulation.AggroSystem? aggro;
     // The game data the world was built from, kept to build the next world of a quickload (GameHost.Saving.cs).
     Meitou.Simulation.PopulationData? popData;
+    ModPluginHost? modHost;
     IReadOnlyList<Meitou.Data.World.TownPlacement> townPlacements = [];
     // The level data, for the zone files and town handles of a save (null in the sandbox and the duel).
     Meitou.Data.World.WorldLevelData? saveLevels;
@@ -143,6 +145,8 @@ sealed partial class GameHost(GameInstall install, WorldScene scene, AssetLocato
                 Sunrise = (float)clock.Sunrise, Sunset = (float)clock.Sunset,
             },
             systems: systems, walkability: walkability);
+        session.WorldReplaced += world => modHost?.AttachWorld(world);
+        modHost?.AttachWorld(session.World);
         BootPlayer(display, interactive);
     }
 
@@ -209,6 +213,9 @@ sealed partial class GameHost(GameInstall install, WorldScene scene, AssetLocato
             townPlacements = towns;
             saveLevels = levels;
             simWalkability = walkability;
+            modHost = ModPluginHost.Load(install, gameDb);
+            if (modHost.PluginCount > 0)
+                Console.WriteLine($"mods      {modHost.PluginCount} C# plugin(s), {modHost.SystemCount} system(s), {modHost.SaveableCount} saveable(s)");
             var built = BuildSystems(interactive);
             population = built.Population;
             aggro = built.Aggro;

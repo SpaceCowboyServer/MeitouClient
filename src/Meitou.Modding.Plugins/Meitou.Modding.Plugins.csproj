@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Per-mod AssemblyLoadContexts and the host side of the plugin contract. JIT-only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Meitou.Core\Meitou.Core.csproj" />
+    <ProjectReference Include="..\Meitou.Data\Meitou.Data.csproj" />
+    <ProjectReference Include="..\Meitou.Simulation\Meitou.Simulation.csproj" />
+    <ProjectReference Include="..\Meitou.Modding.Api\Meitou.Modding.Api.csproj" />
+  </ItemGroup>
+</Project>

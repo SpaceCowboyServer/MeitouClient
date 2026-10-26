@@ -81,8 +81,9 @@ sealed partial class GameHost
     }
 
     /// <summary>The system list and its order are <see cref="StandardSystems"/>'(docs/simulation.md "Threading"); built again for each world.</summary>
-    Meitou.Simulation.StandardSystemSet BuildSystems(bool interactive, PopulationData? data = null, NewGameSettings? settings = null) =>
-        Meitou.Simulation.StandardSystems.Build(data ?? popData!, simWalkability!, new Meitou.Simulation.StandardSystemOptions
+    Meitou.Simulation.StandardSystemSet BuildSystems(bool interactive, PopulationData? data = null, NewGameSettings? settings = null)
+    {
+        var built = Meitou.Simulation.StandardSystems.Build(data ?? popData!, simWalkability!, new Meitou.Simulation.StandardSystemOptions
         {
             // The sandbox compares motion with the original on characters standing still: a hostile foe there must not start a fight by itself. The duel and the battle script their fights.
             // --battle-no-fear: no flee system, so nobody runs away.
@@ -112,6 +113,9 @@ sealed partial class GameHost
             Ragdolls = characterRigs,
             RagdollEnvironment = ragdollGeometry,
         });
+        modHost?.AddSystems(built);
+        return built;
+    }
 
     /// <summary>Once per frame, between ticks: the notices of the write worker, the requests of the keys, a finished read.</summary>
     void HandleSaves()
@@ -169,12 +173,14 @@ sealed partial class GameHost
         }
         double captureMs = watch.Elapsed.TotalMilliseconds;
         string folder = destination ?? QuickSave.Folder();
+        var modSaves = modHost?.CaptureSidecars();
         saveWrite = Task.Run(() =>
         {
             try
             {
                 var written = Stopwatch.StartNew();
                 game.Write(folder);
+                if (modSaves is not null) modHost?.WriteSidecars(folder, modSaves);
                 Console.WriteLine($"save      {folder}: captured in {captureMs:0.0} ms{(ahead ? "" : " (the base made on the spot)")}, written in {written.ElapsedMilliseconds} ms");
                 saveNotices.Enqueue(("Saved", false));
             }
@@ -276,6 +282,7 @@ sealed partial class GameHost
         StandardSystemSet built;
         var nextDifficulty = NewGameSettings.Read(read.Result.Camera);
         var nextData = nextDifficulty.Apply(popData!, Gameplay.Dismemberment);
+        if (!string.IsNullOrEmpty(readingFolder)) modHost?.ReadSidecars(readingFolder);
         try
         {
             built = BuildSystems(interactive, nextData, nextDifficulty);

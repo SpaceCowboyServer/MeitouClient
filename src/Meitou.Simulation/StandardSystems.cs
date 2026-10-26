@@ -85,6 +85,16 @@ public sealed class StandardSystemOptions
 public sealed class StandardSystemSet
 {
     public required IReadOnlyList<ITickSystem> Systems { get; init; }
+
+    /// <summary>Appends a mod system after the standard wiring; only valid before the world's first tick.</summary>
+    public void AddSystem(ITickSystem system)
+    {
+        ArgumentNullException.ThrowIfNull(system);
+        if (Systems is not List<ITickSystem> list)
+            throw new InvalidOperationException("The standard system list is fixed.");
+        list.Add(system);
+    }
+
     public PopulationSystem? Population { get; init; }
     public MovementSystem? Movement { get; init; }
     /// <summary>Built when combat, pursuit or retaliation is asked for.</summary>

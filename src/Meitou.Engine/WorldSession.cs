@@ -55,6 +55,9 @@ public sealed class WorldSession : IDisposable
     public GameClock Clock { get; }
     /// <summary>The simulated world; it ticks with the simulation clock. Replaced as a whole by <see cref="ReplaceWorld"/> (a loaded save); read it again after a frame, do not keep it.</summary>
     public World World { get; private set; }
+
+    /// <summary>Raised after <see cref="World"/> has been replaced, with the new world (the host's plugin command target).</summary>
+    public event Action<World>? WorldReplaced;
     /// <summary>
     /// The snapshot the last simulation tick published and the one before it, for interpolating by <see cref="SimulationAlpha"/>. While a tick runs ahead
     /// (<see cref="BeginTickAhead"/>) or waits to fall due, the pair from before it: the picture moves on only when the clock reaches that tick.
@@ -245,6 +248,7 @@ public sealed class WorldSession : IDisposable
         Discard(old);
         // The navmesh door table follows the new world: the old one's locked doors are forgotten, the new one's told.
         if (worldWalkability is Meitou.Simulation.Locks.IDoorGate gate) { gate.ResetDoors(); next.Fixtures.Doors = gate; }
+        WorldReplaced?.Invoke(next);
         return next;
     }
 

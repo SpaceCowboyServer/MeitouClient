@@ -15,6 +15,8 @@
     <Project Path="src/Meitou.Metal/Meitou.Metal.csproj" />
     <Project Path="src/Meitou.MetalSpike/Meitou.MetalSpike.csproj" />
     <Project Path="src/Meitou.Modding/Meitou.Modding.csproj" />
+    <Project Path="src/Meitou.Modding.Api/Meitou.Modding.Api.csproj" />
+    <Project Path="src/Meitou.Modding.Plugins/Meitou.Modding.Plugins.csproj" />
     <Project Path="src/Meitou.Navigation/Meitou.Navigation.csproj" />
     <Project Path="src/Meitou.Rendering.Display/Meitou.Rendering.Display.csproj" />
     <Project Path="src/Meitou.Rendering/Meitou.Rendering.csproj" />

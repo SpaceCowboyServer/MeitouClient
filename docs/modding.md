@@ -1,8 +1,8 @@
 # Modding foundation
 
-**Status: manifest/resolver, VFS/content validation and startup validation implemented (2026-10-26); applying content to gameplay,
-C#/Lua loading and save integration are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs
-stay ignored. Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
+**Status: manifest/resolver, VFS/content validation, startup validation and the C# plugin host are implemented (2026-10-26); applying
+content to gameplay and Lua are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay
+ignored. Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
 
 Goal: a data-first modding foundation with a stable API, compiled C# extensions first, Lua later, and a launcher
 that resolves dependencies, load order and trust. Non-goals for v1: RE_Kenshi binary compatibility, native plugins,
@@ -79,10 +79,10 @@ The API is a facade over the game's systems, used by data, C# and Lua:
 
 ### C# (first)
 
-The detailed C# contract is preserved in [modding-csharp](modding-csharp.md): `meitou.json` discovery, one
-non-collectible `AssemblyLoadContext` per mod, `IMod.Initialize(ModContext)` after data merge, simulation-only
-extension points, the determinism rules, sidecar saves, versioning and trust. This plan adds dependencies, data/assets,
-Lua and the launcher around that contract; it does not replace the C# loading/lifecycle decisions yet.
+The C# plugin API and host are implemented; the current contract, registration surface and limitations are in
+[modding-csharp](modding-csharp.md). `Meitou.Modding.Api` holds `IMod`/`IModContext`/`ISaveable`; `Meitou.Modding.Plugins`
+loads one non-collectible `AssemblyLoadContext` per enabled plugin, appends its per-world systems, and reads/writes
+`meitou-mods/<id>.bin` save sidecars. Lua and the `script` tier are later.
 
 ### Lua (later)
 
@@ -95,17 +95,18 @@ Lua and the launcher around that contract; it does not replace the C# loading/li
 | Project | Responsibility |
 |---|---|
 | `src/Meitou.Core/Modding` | manifest, resolver, profiles, lockfile (AOT, launcher + game) |
-| `src/Meitou.Modding.Api` | stable contracts/DTOs/IDs; no engine internals |
-| `src/Meitou.Modding` | VFS, content, assets, services, lifecycle |
-| `src/Meitou.Modding.Scripting` | Lua host and bindings |
-| `src/Meitou.Modding.Plugins` | C# ALC host and version gate |
+| `src/Meitou.Modding.Api` | stable plugin contracts over the public Data/Simulation types |
+| `src/Meitou.Modding` | VFS, content, assets, asset cache |
+| `src/Meitou.Modding.Scripting` | Lua host and bindings (planned) |
+| `src/Meitou.Modding.Plugins` | C# ALC host, services, systems, sidecars |
 | `src/Meitou.Game` | adapters and composition root |
 | `launcher/Meitou.Launcher` | mod list, deps, conflicts, profiles, trust |
 | `tools/Meitou.Tools` | `mod init/validate/pack/graph` |
 | `docs/modding*` | manifest, content, API, trust, saves |
 
-Dependency direction: `Api` has no engine dependencies; `Modding` references `Core`/`Data`; `Game` wires adapters;
-the launcher uses `Core` only and loads no mod code.
+Dependency direction: `Api` references the public Data/Simulation types (direct simulation access is the v1 choice);
+`Plugins` references `Api`/`Core`/`Data`/`Simulation`; `Modding` references `Core`; `Game` wires adapters; the launcher uses
+`Core` only and loads no mod code.
 
 ## Phases
 
@@ -114,7 +115,7 @@ the launcher uses `Core` only and loads no mod code.
 | 0 | Spec, sample manifests/content, ID/version/trust rules | docs + samples |
 | 1 | Manifest discovery, resolver, profiles/lockfile, launcher display | three mods resolve; cycles/missing deps reported |
 | 2 | VFS, asset pipeline, content registry/validation | revolver content/assets validate data-only; missing assets fail validation |
-| 3 | API facade + C# host/adapters | bounty framework loads, registers, saves |
+| 3 | API facade + C# host/adapters | plugin loads, registers services/systems and saves sidecars |
 | 4 | Bounty vertical slice | accept/track/complete/save; dependency failures safe |
 | 5 | Lua host/sandbox | Lua bounty content; broken script isolated |
 | 6 | Save/lifecycle/diagnostics | remove mod, safe mode, `--validate-mods` |
@@ -138,6 +139,6 @@ Order: data → C# → Lua. Do not build the distributor or Lua host before the 
 - Manifest JSON is chosen for the AOT launcher; content YAML is game-side. Revisit only if one format is clearly better.
 - Non-collectible ALC/no unload is the current C# choice; collectible contexts remain open.
 - Lua host (MoonSharp vs NLua) and whether scripts get UI hooks.
-- Whether mods reference `Meitou.Simulation` directly or only the facade.
+- System anchors: before/after a `StandardParts` member instead of append-only.
 - Whether content items map onto FCS records or a new runtime item model.
 - Workshop needs Meitou's own Steam app; a local/custom repository comes first.
