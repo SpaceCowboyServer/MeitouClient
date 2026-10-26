@@ -29,6 +29,12 @@ public readonly record struct CombatLogEntry(long Tick, int Attacker, int Defend
     public bool Intended { get; init; }
 }
 
+/// <summary>A serial consumer of killing blows (the bounty board); <paramref name="world"/> is the tick's world, the slots the attacker and the victim.</summary>
+public interface ICombatDeathSink
+{
+    void Died(World world, int attacker, int defender);
+}
+
 /// <summary>Settings of the <see cref="CombatSystem"/> that are the host's choice rather than the game's.</summary>
 public sealed record CombatOptions
 {

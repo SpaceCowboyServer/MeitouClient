@@ -76,6 +76,7 @@ public static class SaveLoader
         BedSave.Read(camera.Record, world);
         LoadTownKnowledge(save, data, world.Player);
         LoadUniques(camera.Record, data, world.Uniques);
+        BountyBoardSave.Read(camera, world, data);
 
         // Building locks and doors are taken from the zones when their town registers; held characters name their bed or cage by building instance.
         var buildingStates = HeldSave.BuildingStates(save);

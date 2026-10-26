@@ -108,6 +108,11 @@ character: within `PlayerSystem.GiveRange` 1000 of its window's owner, `StealRan
 Ledgers are per wanted faction; crimes pending at deed time and witness booking are distinct.
 CONSTANTS categories define theft/assault/murder/looting values. Expiry is0.04 hours/cat and
 permanent from10000; capture, claiming, bail and prison sentences use separate paths.
+
+**Meitou engine addition:** the faction bounty board (`BountyBoardSystem`) offers three-kill contracts against bandit factions for c.4,500 and pays
+on the player's killing blows; it is separate from the original crime ledger and is saved in CAMERA `meitou bounty*`. See
+[simulation](../simulation.md#crimes-and-bounties).
+
 Witness/innocence details remain partly unknown; a killing is no crime (11.6), only relation events.
 Slavery/prisoner/animal transactions and loot generation are not equivalent to ordinary shop
 trades. Consult [factions](factions-squads-towns.md), [carry-loot](carry-loot.md) and the retained

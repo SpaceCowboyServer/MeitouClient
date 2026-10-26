@@ -38,8 +38,10 @@ public enum StandardParts
     Dialogue = 131072,
     /// <summary>Production, farms and research of the player's complete buildings (<see cref="Meitou.Simulation.Production.ProductionSystem"/>).</summary>
     Production = 262144,
+    /// <summary>Player bounty contracts on bandit factions (<see cref="Meitou.Simulation.Bounties.BountyBoardSystem"/>).</summary>
+    Bounties = 524288,
     /// <summary>What the game runs.</summary>
-    All = Population | Player | Pursuit | Movement | Body | Combat | Animation | Feed | Retaliation | FirstAid | Aggro | Flee | Carry | Crime | Trade | Ai | Construction | Dialogue | Production,
+    All = Population | Player | Pursuit | Movement | Body | Combat | Animation | Feed | Retaliation | FirstAid | Aggro | Flee | Carry | Crime | Trade | Ai | Construction | Dialogue | Production | Bounties,
 }
 
 /// <summary>What <see cref="StandardSystems.Build"/> builds and with which settings; the defaults are the game's.</summary>
@@ -75,6 +77,7 @@ public sealed class StandardSystemOptions
     public Meitou.Simulation.Ai.AiSettings? Ai { get; init; }
     public Meitou.Simulation.Construction.ConstructionSettings? Construction { get; init; }
     public Meitou.Simulation.Production.ProductionSettings? Production { get; init; }
+    public Meitou.Simulation.Bounties.BountySettings? Bounties { get; init; }
     /// <summary>The rigs the characters are drawn with: given, the physics ragdolls run (after the animation); null, the fall and lying clips stand in for them.</summary>
     public Meitou.Data.Characters.CharacterRigs? Ragdolls { get; init; }
     /// <summary>What ragdolls fall onto (null: the walkable ground, no buildings).</summary>
@@ -113,6 +116,7 @@ public sealed class StandardSystemSet
     public Meitou.Simulation.Ai.AiSystem? Ai { get; init; }
     public Meitou.Simulation.Construction.ConstructionSystem? Construction { get; init; }
     public Meitou.Simulation.Production.ProductionSystem? Production { get; init; }
+    public Meitou.Simulation.Bounties.BountyBoardSystem? Bounties { get; init; }
     public Meitou.Simulation.Ragdolls.RagdollSystem? Ragdolls { get; init; }
     public Meitou.Simulation.Dialogue.DialogueSystem? Dialogue { get; init; }
 }
@@ -260,6 +264,12 @@ public static class StandardSystems
         if (talk is not null && aggro is not null) aggro.Memory = talk.Memory;
         if (talk is not null && population is not null) population.Memory = talk.Memory;
         if (arrest is not null) arrest.Talk = talk;
-        return new StandardSystemSet { Systems = systems, Population = population, Movement = movement, Combat = combat, Aggro = aggro, Carry = carry, Kidnap = kidnap, Captives = captives, Crime = crime, Arrest = arrest, Locks = locks, Beds = beds, Trade = trade, Ai = ai, Construction = construction, Production = production, Ragdolls = ragdolls, Dialogue = talk };
+        Meitou.Simulation.Bounties.BountyBoardSystem? bounties = null;
+        if (Has(StandardParts.Bounties))
+        {
+            systems.Add(bounties = new Meitou.Simulation.Bounties.BountyBoardSystem(data, o.Bounties));
+            if (combat is not null) combat.Deaths = bounties;
+        }
+        return new StandardSystemSet { Systems = systems, Population = population, Movement = movement, Combat = combat, Aggro = aggro, Carry = carry, Kidnap = kidnap, Captives = captives, Crime = crime, Arrest = arrest, Locks = locks, Beds = beds, Trade = trade, Ai = ai, Construction = construction, Production = production, Bounties = bounties, Ragdolls = ragdolls, Dialogue = talk };
     }
 }

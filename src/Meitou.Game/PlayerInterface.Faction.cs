@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using Meitou.Data.Ui;
+using Meitou.Simulation.Bounties;
 using Meitou.Ui;
 
 namespace Meitou.Game;
@@ -15,6 +16,9 @@ sealed partial class PlayerInterface
 
     /// <summary>The factions the faction tab lists with the player's relation towards each (-100..100); null before a world with game data. The host sets it.</summary>
     public Func<IReadOnlyList<(string Name, float Relation)>>? FactionRelations { get; set; }
+
+    /// <summary>The last published bounty board (offers and accepted contracts); null before a world with the bounty system. The host sets it.</summary>
+    public Func<BountyBoardView?>? Bounties { get; set; }
 
     MyGuiLayout? relationsLineLayout;
     float relationsScroll;
@@ -37,9 +41,20 @@ sealed partial class PlayerInterface
         b.Text[FactionNameBox] = name;
     }
 
-    /// <summary>A text change in the name box is kept as the draft; the box losing the focus (or the tab closing) sends the rename of the last one.</summary>
+    /// <summary>A text change in the name box is kept as the draft; the box losing the focus (or the tab closing) sends the rename of the last one. Bounty buttons go
+    /// through the command queue like orders.</summary>
     void FactionAction(MyGuiEvent e)
     {
+        if (e.Action.StartsWith("bounty-accept:", StringComparison.Ordinal))
+        {
+            Say(new AcceptBountyCommand(e.Action[14..]) { Tick = session.World.Tick });
+            return;
+        }
+        if (e.Action.StartsWith("bounty-abandon:", StringComparison.Ordinal))
+        {
+            Say(new AbandonBountyCommand(e.Action[15..]) { Tick = session.World.Tick });
+            return;
+        }
         if (e.Widget == FactionNameBox && e.Action == "text") factionDraft = e.Text;
     }
 
@@ -61,8 +76,27 @@ sealed partial class PlayerInterface
         if (!FactionShown) return;
         var scale = Height / 1080f;
         if (controls.FirstOrDefault(c => c.Name == "FactionInfoPanel") is not null)
-            AddLines(controls, "FactionInfoPanel", [new(Loc.Tr("---Active Contracts---"), "", GreyColour), new("", ""), new(Loc.Tr("---Upcoming Events---"), "", GreyColour)],
-                20 * scale, StandardPixels);
+        {
+            var board = Bounties?.Invoke();
+            var lines = new List<HudLine> { new(Loc.Tr("---Active Contracts---"), "", GreyColour) };
+            if (board is { Active.Count: > 0 })
+                foreach (var contract in board.Active)
+                    lines.Add(new($"{contract.FactionName}  {contract.Progress}/{contract.Required}", Loc.Tr("Abandon"), MainColour, BadBrightColour,
+                        TooltipRows: BountyTip(contract.Reward, contract.Distance), Action: "bounty-abandon:" + contract.Id, ButtonWidth: 0.27f));
+            else
+                lines.Add(new(Loc.Tr("No active contracts"), "", GreyColour));
+            lines.Add(new("", ""));
+            lines.Add(new(Loc.Tr("---Available Contracts---"), "", GreyColour));
+            if (board is { Offers.Count: > 0 })
+                foreach (var offer in board.Offers)
+                    lines.Add(new($"{offer.FactionName}  {Loc.Tr("{1} kills", offer.Required)}", Loc.Tr("Accept"), MainColour, GoodColour,
+                        TooltipRows: BountyTip(offer.Reward, offer.Distance), Action: "bounty-accept:" + offer.Id, ButtonWidth: 0.27f));
+            else
+                lines.Add(new(Loc.Tr("No bounties nearby"), "", GreyColour));
+            lines.Add(new("", ""));
+            lines.Add(new(Loc.Tr("---Upcoming Events---"), "", GreyColour));
+            AddLines(controls, "FactionInfoPanel", lines, 20 * scale, StandardPixels);
+        }
         if (relationsLineLayout is null || controls.FirstOrDefault(c => c.Name == "RelationsPanel") is not { } panel) return;
         var factions = (FactionRelations?.Invoke() ?? []).OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase).ToList();
         var area = panel.Bounds;
@@ -97,6 +131,13 @@ sealed partial class PlayerInterface
             }
         }
     }
+
+    /// <summary>A bounty row's tooltip: the reward and the distance to the nearest living member of the target faction.</summary>
+    static IReadOnlyList<(string Key, string Value)> BountyTip(int reward, float distance) =>
+    [
+        (Loc.Tr("Reward:"), Loc.Tr("c.{1,num}", reward)),
+        (Loc.Tr("Nearest target:"), float.IsFinite(distance) ? Loc.Tr("{1,num} m", (int)distance) : Loc.Tr("Unknown")),
+    ];
 
     /// <summary>The wheel over the relations list scrolls it.</summary>
     bool FactionWheel(Vector2 p, float steps)

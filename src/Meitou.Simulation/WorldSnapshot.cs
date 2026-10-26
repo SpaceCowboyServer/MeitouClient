@@ -327,6 +327,8 @@ public sealed record WorldSnapshot(long Tick, IReadOnlyList<CharacterSnapshot> C
     public SquadAi SquadAi { get; init; } = SquadAi.Defaults;
     /// <summary>The player's squads in order (<see cref="SquadManagement.PlayerSquads"/>), each with its members in squad order (the first leads).</summary>
     public IReadOnlyList<SquadView> PlayerSquads { get; init; } = [];
+    /// <summary>The bounty board's offers and accepted contracts as of the last publish (empty when the world has no bounty system).</summary>
+    public Meitou.Simulation.Bounties.BountyBoardView Bounties { get; init; } = Meitou.Simulation.Bounties.BountyBoardView.Empty;
     /// <summary>The active squad's id (<see cref="PlayerState.Squad"/>; -1 none): the squad bar shows it.</summary>
     public int ActiveSquad { get; init; } = -1;
     /// <summary>The downed (or the player's own) character whose inventory window is open (<see cref="PlayerState.OpenLoot"/>; its snapshot has the <see cref="CharacterSnapshot.ItemGrid"/>), and who opened it.</summary>

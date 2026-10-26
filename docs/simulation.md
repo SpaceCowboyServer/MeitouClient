@@ -76,8 +76,9 @@ factories/database/relations and lazy body/combat/item assembly. Research owns o
 
 `StandardSystems.Build` is the single wiring authority. Ordered systems:
 Population, Player, AI, Pursuit, Movement, FirstAid, Body, Carry, Construction, Combat, Animation, Ragdoll
-(only with `StandardSystemOptions.Ragdolls`), Feed, Retaliation, Aggro, Flee, Crime, Arrest, Locks, Trade, Dialogue (Arrest and
-Locks come with the Crime part), with Production right after Construction. Tests selecting subsets retain this relative order.
+(only with `StandardSystemOptions.Ragdolls`), Feed, Retaliation, Aggro, Flee, Crime, Arrest, Locks, Trade, Dialogue, Bounties (the
+faction bounty board; Arrest and Locks come with the Crime part), with Production right after Construction. Tests selecting subsets retain
+this relative order.
 Population spawns before later SlowWorld work; player selection precedes movement orders;
 AI writes tasks before movement; pursuit schedules paths before movement answers them.
 First aid reads patients in its own Act barrier and applies treatment during serial commit.
@@ -572,6 +573,14 @@ character sets the call site's code (`CrimeSystem.TakeCode`: right click, drag, 
 too); the take-all (`LootOrder`) keeps the Looting of `CrimeSystem.Loot`. Floors are `SightMap.FloorOf` / `FloorAt`. Engine choices: every squad
 living in the building watches (Meitou may house more than one), the window closes when the sleeper wakes. A stolen ground pick-up inside
 a building is a pending Theft with thievery XP 20, no roll.
+
+**Bounty board (engine).** `Bounties/BountyBoardSystem` (`StandardParts.Bounties`, after Dialogue) is Meitou's player-facing bounty loop:
+it offers up to three factions whose `fundamental type` is BANDIT and that have a living member within 20,000 of a player character. A contract asks for
+three player killing blows against that faction and pays c.4,500 on the last one; `CombatSystem`'s serial `ICombatDeathSink` counts only kills whose
+attacker is a player character. Accept/abandon are `SimCommand`s from the faction tab (`PlayerInterface.Faction`); offers, progress and the distance to the
+nearest living member are published in `WorldSnapshot.Bounties`. Completed factions stay completed for that save; abandoning reoffers them. Saved in
+CAMERA (`meitou bounty*`, by faction ID; offers are derived again), so a save whose faction is gone drops that contract. Engine choices: a faction-wide
+kill count, no delivery/turn-in, a flat reward and no deadline; content-defined contracts and an external C# framework remain later work.
 
 ## Cages, beds and locks
 
@@ -1441,6 +1450,8 @@ town NPC the population makes again with a new id, so a saved link would dangle)
 that quick), cagings (the carry link is not saved: order Put in Cage again), hunts and their rest timers, release, lock-up and warden rounds (the 30-tick sweep finds
 them again), the unreachable-cage memo (relearned by a failed walk), lock picking (an order), pending crimes
 (seconds long, victim id unsaveable). Spawn bounties are not saved: they are rolled when the population makes an NPC, never for a loaded character.
+The player bounty board keeps its accepted and completed contracts in CAMERA `meitou bounty*` (faction ID, required, progress, reward, state); offers are
+rebuilt from the world. A faction the load order no longer has is skipped, leaving the rest of the board intact.
 
 ## Sandbox
 

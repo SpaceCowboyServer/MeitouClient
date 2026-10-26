@@ -69,6 +69,8 @@ public sealed partial class CombatSystem : ITickSystem, IStateHashed
     public FactionDeeds? Deeds { get; set; }
     /// <summary>The crime system the player's assaults and hits on the police are reported to (null: no crimes).</summary>
     public Crime.CrimeSystem? Crimes { get; set; }
+    /// <summary>The serial consumer of killing blows (the bounty board); null: nobody counts deaths.</summary>
+    public ICombatDeathSink? Deaths { get; set; }
     /// <summary>
     /// Picks the hit reaction clip of a hit (set by the animation system, which owns the clips): the defender, the hit part's LOCATIONAL_DAMAGE id, big stumble, the side
     /// (0 front, 1 rear) and a roll in [0, 1); returns the clip (an animation library index) and its length in seconds, or null when none fits. Null: hits play no clip.

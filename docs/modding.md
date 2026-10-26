@@ -1,8 +1,8 @@
 # Modding foundation
 
-**Status: manifest/resolver, VFS/content validation, startup validation and the C# plugin host are implemented (2026-10-26); applying
-content to gameplay and Lua are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay
-ignored. Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
+**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host and the core faction bounty board are implemented
+(2026-10-26); applying content to gameplay and Lua are planned.** The RE_Kenshi decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs
+stay ignored. Data-only Kenshi mods load through the normal readers; Meitou's own mods use this plan.
 
 Goal: a data-first modding foundation with a stable API, compiled C# extensions first, Lua later, and a launcher
 that resolves dependencies, load order and trust. Non-goals for v1: RE_Kenshi binary compatibility, native plugins,
@@ -21,6 +21,10 @@ Three mods prove the foundation:
 Done when: the launcher resolves the three; the revolver item appears; a bounty is offered, tracked, paid and saved;
 disabling the revolver or the framework fails with a clear message; `--validate-mods` reports missing deps/assets;
 a broken Lua script does not crash the game.
+
+The **core** part of the bounty slice is implemented as `BountyBoardSystem`: bandit-faction offers, accept/abandon, player-kill progress, payment,
+the faction-tab UI and CAMERA save keys. The external `frontier.bounties` plugin and content-defined `contract` targets/rewards remain to be built on
+that base.
 
 ## Layers
 
@@ -116,7 +120,7 @@ Dependency direction: `Api` references the public Data/Simulation types (direct 
 | 1 | Manifest discovery, resolver, profiles/lockfile, launcher display | three mods resolve; cycles/missing deps reported |
 | 2 | VFS, asset pipeline, content registry/validation | revolver content/assets validate data-only; missing assets fail validation |
 | 3 | API facade + C# host/adapters | plugin loads, registers services/systems and saves sidecars |
-| 4 | Bounty vertical slice | accept/track/complete/save; dependency failures safe |
+| 4 | Bounty vertical slice | **done (core):** accept/track/complete/save; missing saved factions dropped safely |
 | 5 | Lua host/sandbox | Lua bounty content; broken script isolated |
 | 6 | Save/lifecycle/diagnostics | remove mod, safe mode, `--validate-mods` |
 | 7 | SDK/docs/distribution | mod template; local repo; Workshop later |
@@ -140,5 +144,6 @@ Order: data → C# → Lua. Do not build the distributor or Lua host before the 
 - Non-collectible ALC/no unload is the current C# choice; collectible contexts remain open.
 - Lua host (MoonSharp vs NLua) and whether scripts get UI hooks.
 - System anchors: before/after a `StandardParts` member instead of append-only.
+- Bounty contracts are currently faction-wide, fixed three-kill offers; content-defined targets, counts and rewards are the next data layer.
 - Whether content items map onto FCS records or a new runtime item model.
 - Workshop needs Meitou's own Steam app; a local/custom repository comes first.

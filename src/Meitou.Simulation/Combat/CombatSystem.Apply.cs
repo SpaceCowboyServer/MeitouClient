@@ -145,6 +145,7 @@ public sealed partial class CombatSystem
         Deeds?.Blow(world, a, d, dc.Medical.Incapacitated, death);
         // A unique killed: dead in the registry, with the player flag when the killer is the player's (the body pass would mark it dead without).
         if (death && world.Uniques.RecordOf(world.Characters.IdOf(d)) is { } unique) world.Uniques.Died(unique, ac.IsPlayer);
+        if (death) Deaths?.Died(world, a, d);
         Record(now, a, d, blow, outcome, part, damage, knockout, death);
     }
 

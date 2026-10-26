@@ -91,6 +91,7 @@ public static partial class SaveCapture
         camera.Record.Bools["bl"] = world.Player.BanditsLoot;
         BedSave.Write(camera.Record, world);
         camera.Record.Strings[SaveLoader.SeedKey] = world.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        BountyBoardSave.Write(camera, world, data);
         if (options.View is { } view)
         {
             // FUN_1406b0740: the pivot's position and orientation, the camera's local z, alt and the tracked object; Meitou's camera follows nobody.
