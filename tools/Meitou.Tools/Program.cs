@@ -34,7 +34,7 @@ static int Usage()
 {
     Console.Error.WriteLine("""
         meitou-tools formats       count file types under the install's data/ folder
-        meitou-tools mods          resolve the enabled manifests and validate their content and assets
+        meitou-tools mods          resolve the enabled manifests and validate their content, assets and code-file paths
         meitou-tools fcs <file>    summarize a .mod/.base file (path, or a name inside data/)
         meitou-tools load          apply the load order and summarize the merged game data
         meitou-tools armour <name> the ARMOUR records of that name after the load order: who defines and modifies them, their fields, and the quicksave's saved copies
@@ -86,15 +86,17 @@ static int Mods(GameInstall install)
     var mods = ModList.Discover(install);
     var resolution = ModDiscovery.Resolve(install, mods);
     var bundle = ModContentBundle.Load(resolution);
-    int legacy = mods.Count(mod => !mod.HasManifest);
+    var codeIssues = ModFileDiagnostics.Validate(resolution);
+    var enabled = ModList.ReadEnabled(install).ToHashSet(StringComparer.Ordinal);
+    int legacy = mods.Count(mod => !mod.HasManifest && enabled.Contains(mod.Name));
 
     Console.WriteLine($"mods: {resolution.Order.Count} enabled with manifests, {legacy} legacy data-only");
     Console.WriteLine($"      {bundle.Vfs.Assets.Count} assets, {bundle.Vfs.ContentFiles.Count} content files, {bundle.Content.Entries.Count} definitions");
     foreach (var candidate in resolution.Order)
         Console.WriteLine($"  {candidate.FolderName,-28} {candidate.Id,-34} {candidate.Manifest.Version,-12} {candidate.Manifest.Trust}");
-    foreach (var issue in bundle.Issues.OrderByDescending(issue => issue.Severity).ThenBy(issue => issue.File, StringComparer.Ordinal))
+    foreach (var issue in bundle.Issues.Concat(codeIssues).OrderByDescending(issue => issue.Severity).ThenBy(issue => issue.File, StringComparer.Ordinal))
         Console.WriteLine($"  {issue.Severity.ToString().ToUpperInvariant(),-7} {issue.Code,-24} {issue.File ?? issue.FolderName ?? ""}: {issue.Message}");
-    return bundle.Success ? 0 : 1;
+    return bundle.Success && codeIssues.Count == 0 ? 0 : 1;
 }
 
 static int Fcs(string path)

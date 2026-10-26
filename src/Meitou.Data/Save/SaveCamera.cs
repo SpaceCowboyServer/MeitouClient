@@ -1,6 +1,7 @@
 using System.Numerics;
 using Meitou.Data.Fcs;
 using Meitou.Data.World;
+using Meitou.Modding;
 
 namespace Meitou.Data.Save;
 
@@ -77,4 +78,56 @@ public sealed class SaveCamera(FcsRecord record)
     /// <summary>The key a data file has in <c>mods</c>.</summary>
     public static string ModKey(string fileName) =>
         fileName.EndsWith(".base", StringComparison.OrdinalIgnoreCase) ? "base" : Path.GetFileNameWithoutExtension(fileName);
+
+    const string ModPrefix = "meitou mod";
+    const int MaxMeitouMods = 1024;
+
+    /// <summary>
+    /// The Meitou mod set (manifest IDs and versions, plus legacy folder names) stored under the CAMERA's Meitou-only keys. It is absent in an older save,
+    /// which then only has the vanilla data-file <c>mods</c> list.
+    /// </summary>
+    public IReadOnlyList<ModSnapshot> MeitouMods
+    {
+        get
+        {
+            int count = Math.Clamp(Record.Ints.GetValueOrDefault($"{ModPrefix} count"), 0, MaxMeitouMods);
+            var mods = new List<ModSnapshot>(count);
+            for (int i = 0; i < count; i++)
+            {
+                string id = Record.Strings.GetValueOrDefault($"{ModPrefix}{i} id", "");
+                string version = Record.Strings.GetValueOrDefault($"{ModPrefix}{i} version", "");
+                string folder = Record.Strings.GetValueOrDefault($"{ModPrefix}{i} folder", "");
+                int trust = Math.Clamp(Record.Ints.GetValueOrDefault($"{ModPrefix}{i} trust"), (int)ModTrust.Data, (int)ModTrust.Plugin);
+                if (id.Length == 0 && folder.Length == 0) continue;
+                mods.Add(new ModSnapshot(id, version, folder, (ModTrust)trust));
+            }
+            return mods;
+        }
+    }
+
+    /// <summary>Writes the Meitou mod set, removing the previous entries first; the original game ignores these CAMERA keys.</summary>
+    public void SetMeitouMods(IEnumerable<ModSnapshot> mods)
+    {
+        int old = Math.Clamp(Record.Ints.GetValueOrDefault($"{ModPrefix} count"), 0, MaxMeitouMods);
+        for (int i = 0; i < old; i++)
+        {
+            Record.Strings.Remove($"{ModPrefix}{i} id");
+            Record.Strings.Remove($"{ModPrefix}{i} version");
+            Record.Strings.Remove($"{ModPrefix}{i} folder");
+            Record.Ints.Remove($"{ModPrefix}{i} trust");
+        }
+        Record.Ints.Remove($"{ModPrefix} count");
+
+        int n = 0;
+        foreach (var mod in mods)
+        {
+            if (n >= MaxMeitouMods) break;
+            Record.Strings[$"{ModPrefix}{n} id"] = mod.Id;
+            Record.Strings[$"{ModPrefix}{n} version"] = mod.Version;
+            Record.Strings[$"{ModPrefix}{n} folder"] = mod.Folder;
+            Record.Ints[$"{ModPrefix}{n} trust"] = (int)mod.Trust;
+            n++;
+        }
+        Record.Ints[$"{ModPrefix} count"] = n;
+    }
 }

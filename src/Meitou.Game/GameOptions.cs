@@ -18,6 +18,10 @@ sealed class GameOptions
     /// <summary>With <c>--screenshot</c>: control ticks (and their real time of simulation, at speed 1) run before the picture, with no input.</summary>
     public int Ticks;
     public bool NoPopulation, NewGame, ListStarts;
+    /// <summary><c>--safe-mode</c>: load the base game only and run no Meitou mod code, without changing <c>mods.cfg</c>.</summary>
+    public bool SafeMode;
+    /// <summary><c>--validate-mods</c>: validate the enabled manifests, content and assets and exit.</summary>
+    public bool ValidateMods;
     /// <summary>The animation sandbox (<c>--sandbox [n]</c>): 0 off, else the number of characters (1 or 2) on a flat wireframe floor.</summary>
     public int Sandbox;
     /// <summary>The CHARACTER record (name or id) the sandbox spawns (null: the default new-game start's first squad member).</summary>
@@ -84,6 +88,8 @@ sealed class GameOptions
           --no-population            no town residents or movement (an empty world)
           --new-game [start]         a new game as the NEW_GAME_STARTOFF start (default Wanderer): the player squad at its town, camera on it
           --list-starts              print the available starts and exit
+          --validate-mods            validate enabled manifests, content and assets, print the load order and exit
+          --safe-mode                start the base game only, without mods or mod code, without changing mods.cfg
           --sandbox [n]              animation sandbox: no world, a flat 1000x1000 wireframe floor (lines every 10, bold every 100) with 1 character (n = 2: two facing each other 30 units apart; more: the rest idle in rings round them, up to 1000); Z/X/C walk/run/free, [ ] fixed speed, P patrol, G fight, Y follow; works with --screenshot --ticks
           --sandbox-character <name> the CHARACTER or ANIMAL_CHARACTER record the sandbox spawns (default: the first member of the default new-game start)
           --sandbox-mode <list>      the sandbox hero's start, comma-separated: walk, run or free, a fixed speed in u/s, patrol (the 400-unit patrol), fight (the G key, with --sandbox 2), e.g. run,patrol (with --move-to or --screenshot)
@@ -146,6 +152,8 @@ sealed class GameOptions
                 case "--no-vsync": g.VSync = false; break;
                 case "--ticks": g.Ticks = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                 case "--no-population": g.NoPopulation = true; break;
+                case "--safe-mode": g.SafeMode = true; break;
+                case "--validate-mods": g.ValidateMods = true; break;
                 case "--title-preview": g.TitlePreview = true; g.UiMode = Meitou.Data.Ui.UiMode.Meitou; break;
                 case "--new-game":
                     g.NewGame = true;

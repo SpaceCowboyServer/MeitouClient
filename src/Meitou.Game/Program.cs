@@ -24,6 +24,16 @@ static class Program
         try
         {
             (game, rest) = GameOptions.Split(args);
+            if (game.ValidateMods)
+            {
+                var validationInstall = GameInstall.Locate();
+                if (validationInstall is null)
+                {
+                    Console.Error.WriteLine($"Kenshi install not found: set {GameInstall.EnvironmentVariable} or create {GameInstall.LocalConfigFile}.");
+                    return 1;
+                }
+                return ValidateMods(validationInstall, detailed: true);
+            }
             world = WorldOptions.Parse(rest);
         }
         catch (Exception e) when (e is ArgumentException or FormatException or IndexOutOfRangeException)
@@ -58,9 +68,13 @@ static class Program
             Console.Error.WriteLine($"Kenshi install not found: set {GameInstall.EnvironmentVariable} or create {GameInstall.LocalConfigFile}.");
             return 1;
         }
-        // Meitou mods are validated before any window or world work. Content/assets are not applied to gameplay yet, but a missing
-        // dependency, manifest, content file or asset must fail here rather than silently starting an incomplete setup.
-        if (!ValidateMods(install)) return 1;
+        // Safe mode changes every LoadOrder and the mod hosts for this process, without touching mods.cfg.
+        Meitou.Data.LoadOrder.SafeMode = game.SafeMode;
+        if (game.SafeMode)
+            Console.WriteLine("mods      safe mode: base game only, no mod code");
+        // Meitou mods are validated before any window or world work, unless safe mode deliberately ignores them. A missing dependency, manifest,
+        // content file or asset must fail here rather than silently starting an incomplete setup.
+        else if (ValidateMods(install, detailed: false) != 0) return 1;
         // Steamworks must start before Vulkan creates its device so Steam can hook the renderer for Shift+Tab. Not for pictures or a
         // listing: those must not count as Kenshi play time or get the overlay.
         using var steam = world.Screenshot is null && !game.ListStarts ? SteamSession.TryStart(install) : null;
@@ -192,17 +206,38 @@ static class Program
         return new GameHost(install, scene, new AssetLocator(install), world, game, config, start) { StartSave = save }.Run();
     }
 
-    static bool ValidateMods(GameInstall install)
+    static int ValidateMods(GameInstall install, bool detailed)
     {
-        var bundle = ModContentBundle.Load(ModDiscovery.Resolve(install));
-        if (!bundle.Success)
+        var mods = ModList.Discover(install);
+        var resolution = ModDiscovery.Resolve(install, mods);
+        var bundle = ModContentBundle.Load(resolution);
+        var codeIssues = ModFileDiagnostics.Validate(resolution);
+        var issues = detailed ? bundle.Issues.Concat(codeIssues).ToList() : bundle.Issues.ToList();
+        var errors = issues.Where(issue => issue.Severity == ModIssueSeverity.Error).ToList();
+        if (detailed)
         {
-            foreach (var issue in bundle.Errors)
-                Console.Error.WriteLine($"mods: {issue.Code}: {issue.Message}");
-            return false;
+            var enabled = ModList.ReadEnabled(install).ToHashSet(StringComparer.Ordinal);
+            int legacy = mods.Count(mod => !mod.HasManifest && enabled.Contains(mod.Name));
+            Console.WriteLine($"mods: {resolution.Order.Count} enabled with manifests, {legacy} legacy data-only");
+            Console.WriteLine($"      {bundle.Vfs.Assets.Count} assets, {bundle.Vfs.ContentFiles.Count} content files, {bundle.Content.Entries.Count} definitions");
+            foreach (var candidate in resolution.Order)
+                Console.WriteLine($"  {candidate.FolderName,-28} {candidate.Id,-34} {candidate.Manifest.Version,-12} {candidate.Manifest.Trust}");
+            foreach (var issue in issues.OrderByDescending(issue => issue.Severity).ThenBy(issue => issue.File, StringComparer.Ordinal))
+                Console.WriteLine($"  {issue.Severity.ToString().ToUpperInvariant(),-7} {issue.Code,-24} {issue.File ?? issue.FolderName ?? ""}: {issue.Message}");
         }
-        foreach (var issue in bundle.Warnings)
-            Console.WriteLine($"mods: warning: {issue.Code}: {issue.Message}");
-        return true;
+        if (errors.Count > 0)
+        {
+            if (!detailed)
+                foreach (var issue in errors)
+                    Console.Error.WriteLine($"mods: {issue.Code}: {issue.Message}");
+            else
+                Console.Error.WriteLine($"mods: {errors.Count} error(s)");
+            return 1;
+        }
+        if (detailed) Console.WriteLine("mods: OK");
+        else
+            foreach (var issue in issues.Where(issue => issue.Severity == ModIssueSeverity.Warning))
+                Console.WriteLine($"mods: warning: {issue.Code}: {issue.Message}");
+        return 0;
     }
 }

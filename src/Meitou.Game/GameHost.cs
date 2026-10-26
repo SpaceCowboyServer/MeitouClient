@@ -44,6 +44,8 @@ sealed partial class GameHost(GameInstall install, WorldScene scene, AssetLocato
     Meitou.Simulation.PopulationData? popData;
     ModPluginHost? modHost;
     LuaModHost? scriptHost;
+    /// <summary>The enabled mod set captured in saves and compared on load; empty in safe mode.</summary>
+    IReadOnlyList<Meitou.Modding.ModSnapshot> currentMods = [];
     IReadOnlyList<Meitou.Data.World.TownPlacement> townPlacements = [];
     // The level data, for the zone files and town handles of a save (null in the sandbox and the duel).
     Meitou.Data.World.WorldLevelData? saveLevels;
@@ -216,13 +218,18 @@ sealed partial class GameHost(GameInstall install, WorldScene scene, AssetLocato
             townPlacements = towns;
             saveLevels = levels;
             simWalkability = walkability;
-            var modResolution = ModDiscovery.Resolve(install);
-            modHost = ModPluginHost.Load(modResolution, gameDb);
-            scriptHost = LuaModHost.Load(modResolution, gameDb);
-            if (modHost.PluginCount > 0)
-                Console.WriteLine($"mods      {modHost.PluginCount} C# plugin(s), {modHost.SystemCount} system(s), {modHost.SaveableCount} saveable(s)");
-            if (scriptHost.ScriptCount > 0)
-                Console.WriteLine($"mods      {scriptHost.ScriptCount} Lua script(s), {scriptHost.SystemCount} system(s), {scriptHost.Contracts.Definitions.Count} contract(s)");
+            // Safe mode deliberately loads no hosts and reads no sidecars; Program has already selected the base LoadOrder.
+            if (!g.SafeMode)
+            {
+                var modResolution = ModDiscovery.Resolve(install);
+                modHost = ModPluginHost.Load(modResolution, gameDb);
+                scriptHost = LuaModHost.Load(modResolution, gameDb);
+                currentMods = ModSnapshots.Current(install, modResolution);
+                if (modHost.PluginCount > 0)
+                    Console.WriteLine($"mods      {modHost.PluginCount} C# plugin(s), {modHost.SystemCount} system(s), {modHost.SaveableCount} saveable(s)");
+                if (scriptHost.ScriptCount > 0)
+                    Console.WriteLine($"mods      {scriptHost.ScriptCount} Lua script(s), {scriptHost.SystemCount} system(s), {scriptHost.Contracts.Definitions.Count} contract(s)");
+            }
             var built = BuildSystems(interactive);
             population = built.Population;
             aggro = built.Aggro;

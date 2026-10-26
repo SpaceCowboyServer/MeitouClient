@@ -1096,6 +1096,15 @@ public sealed partial class MainWindow : Window
     {
         // As the update button: install the latest, or cancel its download.
         if (PlayButton.Classes.Contains("pending")) { InstallLatest_Click(sender, e); return; }
+        Play(safeMode: false);
+    }
+
+    void SafeMode_Click(object? sender, RoutedEventArgs e) => Play(safeMode: true);
+
+    void Play(bool safeMode)
+    {
+        // The Play button is the update button while a download runs; a separate safe-mode launch waits instead of starting with a half-applied setup.
+        if (PlayButton.Classes.Contains("pending")) { Status("Wait for the update download to finish."); return; }
         if (install is null) { Status("Set the Kenshi folder first (Settings)."); return; }
         string version;
         string? exe = null;
@@ -1112,8 +1121,11 @@ public sealed partial class MainWindow : Window
         else version = "Debug build";
         // A second game would share meitou.user.json and the mod list with the first; whichever closes last overwrites the other's.
         if (running is { HasExited: false }) { Status("Meitou is already running: close it before starting it again."); return; }
-        if (!SaveMods()) return;
-        if (!ValidateMods()) return;
+        if (!safeMode)
+        {
+            if (!SaveMods()) return;
+            if (!ValidateMods()) return;
+        }
         if (graphicsSave?.IsEnabled == true) SaveGame();
         var start = new ProcessStartInfo(exe)
         {
@@ -1216,6 +1228,7 @@ public sealed partial class MainWindow : Window
             }
         }
         foreach (var arg in SplitArguments(config.LaunchArguments)) start.ArgumentList.Add(arg);
+        if (safeMode) start.ArgumentList.Add("--safe-mode");
         if (renderer is not null)
         {
             // Appended last so the selector wins over a hand-written --renderer in Launch arguments.
@@ -1227,7 +1240,8 @@ public sealed partial class MainWindow : Window
             var game = Process.Start(start);
             running = game;
             string suffix = metalFallback ? " (Vulkan loader missing)" : "";
-            Status(renderer is null ? $"Meitou {version} started." : $"Meitou {version} started with {RendererLabel(renderer)}{suffix}.");
+            string mode = safeMode ? " in safe mode" : "";
+            Status(renderer is null ? $"Meitou {version} started{mode}." : $"Meitou {version} started{mode} with {RendererLabel(renderer)}{suffix}.");
             if (game is null) { RemoveSteamAppIds(); return; }
             // The game's window is all a player sees of it, so a crash (above all one before the window opens) is reported here.
             var log = Path.Combine(Path.GetDirectoryName(exe)!, "log.txt");

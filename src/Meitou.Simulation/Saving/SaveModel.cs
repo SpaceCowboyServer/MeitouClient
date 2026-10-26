@@ -1,5 +1,6 @@
 using System.Numerics;
 using Meitou.Data.Save;
+using Meitou.Modding;
 using Meitou.Simulation.Bodies;
 
 namespace Meitou.Simulation.Saving;
@@ -79,6 +80,10 @@ public sealed class LoadedSave
     public int WildPlatoons { get; set; }
     /// <summary>The CAMERA <c>mods</c> entries the running load order lacks (the save was made with mods this game does not load).</summary>
     public List<string> MissingMods { get; } = [];
+    /// <summary>The Meitou mod set the save was made with (empty for a save written before the list existed).</summary>
+    public List<ModSnapshot> SavedMods { get; } = [];
+    /// <summary>Missing, version-changed or trust-changed manifest mods, one line each; newer mods are only a note.</summary>
+    public List<string> ModIssues { get; } = [];
     /// <summary>What was left out or changed, one line each (a record that could not be resolved, characters that are dead, platoons without a town...).</summary>
     public List<string> Notes { get; } = [];
 

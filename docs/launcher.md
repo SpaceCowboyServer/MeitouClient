@@ -219,6 +219,8 @@ start the `settings.cfg` value wins. The launcher's labels come from the same `.
   dependencies, conflicts or version mismatches before starting ([modding-manifest](modding-manifest.md)). The game then validates
   the enabled content/assets at startup, exits with the issues if invalid ([modding-content](modding-content.md)), and loads the
   trusted C# plugins ([modding-csharp](modding-csharp.md)). Legacy mods without a manifest keep the rules above.
+- **Play safe mode** starts the game with `--safe-mode`: base data only, no mod level folders or mod code, and `mods.cfg` is not
+  changed. `--validate-mods` runs the same diagnostics as `meitou-tools mods` without starting a world.
 
 ## News
 

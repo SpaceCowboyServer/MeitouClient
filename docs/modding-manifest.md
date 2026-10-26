@@ -88,4 +88,4 @@ The mods are in load order. The hash currently covers only `meitou.json`; conten
 - C# `plugin` assemblies load through [modding-csharp](modding-csharp.md); Lua `script` entries load through [modding-lua](modding-lua.md).
 - Manifest-only mod folders (no `<name>.mod`) are not discovered yet.
 - The launcher does not write a lockfile or offer automatic dependency enabling yet.
-- Saves record mod state in `meitou-mods/<id>.bin` sidecars, not in the vanilla save or a lockfile.
+- Saves record the enabled IDs/versions/trust in CAMERA `meitou mod*` keys and code state in `meitou-mods/<id>.bin` sidecars, not in the vanilla save or a lockfile.

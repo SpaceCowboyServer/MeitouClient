@@ -7,6 +7,7 @@ using Meitou.Data.Gameplay;
 using Meitou.Data.Gameplay.Bodies;
 using Meitou.Data.Save;
 using Meitou.Data.World;
+using Meitou.Modding;
 using Meitou.Simulation.Bodies;
 
 namespace Meitou.Simulation.Saving;
@@ -16,6 +17,9 @@ public sealed class SaveCaptureOptions
 {
     /// <summary>The data files in load order, for the CAMERA <c>mods</c> list.</summary>
     public IReadOnlyList<string> DataFiles { get; init; } = LoadOrder.BaseFiles;
+
+    /// <summary>The enabled Meitou mods, for the CAMERA <c>meitou mod*</c> list (IDs, versions and trust).</summary>
+    public IReadOnlyList<ModSnapshot> Mods { get; init; } = [];
 
     /// <summary>The placed towns of the level data, in order. A new save (no loaded one to carry on) writes a default state for each; without them it has no town states.</summary>
     public IReadOnlyList<TownPlacement>? Placements { get; init; }
@@ -86,6 +90,7 @@ public static partial class SaveCapture
         camera.PlayerMoney = (int)Math.Clamp(world.Player.Money, int.MinValue, int.MaxValue);
         camera.Version = SaveGame.GameVersion;
         camera.SetMods(options.DataFiles);
+        camera.SetMeitouMods(options.Mods);
         if (data.PlayerFaction >= 0) camera.PlayerFactionName = world.Player.FactionName ?? data.Factions[data.PlayerFaction].Name;
         SquadAiKeys.Write(camera.Record, world.Player.SquadAi);
         camera.Record.Bools["bl"] = world.Player.BanditsLoot;

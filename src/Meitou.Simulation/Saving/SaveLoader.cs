@@ -5,6 +5,7 @@ using Meitou.Data.Fcs;
 using Meitou.Data.Gameplay;
 using Meitou.Data.Gameplay.Bodies;
 using Meitou.Data.Save;
+using Meitou.Modding;
 using Meitou.Simulation.Bodies;
 
 namespace Meitou.Simulation.Saving;
@@ -26,6 +27,9 @@ public sealed class SaveLoadOptions
 
     /// <summary>The look of a spawned character, rolled by this source from the character's saved serial (the saved CHARACTER_APPEARANCE is not read into a drawable look yet). Null: no look.</summary>
     public IAppearanceSource? Appearances { get; init; }
+
+    /// <summary>The enabled mods now, for the save's Meitou mod list; null: only the vanilla data-file list is checked.</summary>
+    public IReadOnlyList<ModSnapshot>? CurrentMods { get; init; }
 }
 
 /// <summary>
@@ -56,6 +60,16 @@ public static class SaveLoader
         foreach (var mod in camera.Record.References.GetValueOrDefault("mods") ?? [])
             if (!running.Contains(mod.TargetStringId)) loaded.MissingMods.Add(mod.TargetStringId);
         if (loaded.MissingMods.Count > 0) loaded.Notes.Add($"Made with data files this game does not load: {string.Join(", ", loaded.MissingMods)}.");
+
+        // The Meitou list adds manifest IDs, versions and trust: the vanilla `mods` list only names data files and cannot see a code-only mod or a version change.
+        loaded.SavedMods.AddRange(camera.MeitouMods);
+        if (options.CurrentMods is { } currentMods && loaded.SavedMods.Count > 0)
+        {
+            var diff = ModSnapshots.Compare(loaded.SavedMods, currentMods);
+            loaded.ModIssues.AddRange(diff.Issues);
+            loaded.Notes.AddRange(diff.Notes);
+            loaded.Notes.AddRange(diff.Issues);
+        }
         if (options.ResetRelations) data.Relations.Reset();
         LoadFactions(save, data, options, loaded);
         loaded.RelationBaseline = Snapshot(data.Relations);

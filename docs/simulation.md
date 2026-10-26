@@ -1459,6 +1459,9 @@ them again), the unreachable-cage memo (relearned by a failed walk), lock pickin
 The contract board keeps its accepted and completed contracts in CAMERA `meitou bounty*` (kind, objective, faction/target ID and marker, title, required,
 progress, reward, state); offers are rebuilt from the world. A faction or named target the load order no longer has is skipped, leaving the rest of the
 board intact. Named targets also carry `meitou contract target` on their GAMESTATE_CHARACTER, so their marker survives an unload and reload.
+The CAMERA's Meitou-only `meitou mod*` keys list the enabled mods with their versions and trust; loading compares them with the current set, reports
+missing/version-changed/trust-changed mods in the log and notice, and only notes newly enabled ones. Old saves without the list are checked by the
+vanilla data-file list. Safe mode loads the base data and no mod code without rewriting `mods.cfg`.
 
 ## Sandbox
 

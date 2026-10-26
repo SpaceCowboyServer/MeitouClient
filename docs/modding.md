@@ -1,7 +1,8 @@
 # Modding foundation
 
-**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host, the Lua host and the core contract board
-(faction, animal, named and spawned targets) are implemented (2026-10-26); applying YAML content to gameplay is planned.** The RE_Kenshi
+**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host, the Lua host, save mod metadata, safe mode and
+`--validate-mods`, and the core contract board (faction, animal, named and spawned targets) are implemented (2026-10-26); applying YAML content
+to gameplay is planned.** The RE_Kenshi
 decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay ignored. Data-only Kenshi mods load through the normal readers;
 Meitou's own mods use this plan.
 
@@ -125,7 +126,7 @@ Dependency direction: `Api` references the public Data/Simulation types (direct 
 | 3 | API facade + C# host/adapters | plugin loads, registers services/systems and saves sidecars |
 | 4 | Bounty vertical slice | **done (gameplay):** faction/animal/named/spawned offers, capture, save; external sample plugin/content in Stage 7 |
 | 5 | Lua host/sandbox | **done (core):** Lua contracts/events; broken script isolated |
-| 6 | Save/lifecycle/diagnostics | remove mod, safe mode, `--validate-mods` |
+| 6 | Save/lifecycle/diagnostics | **done (core):** saved mod IDs/versions, load mismatch report, safe mode, `--validate-mods` |
 | 7 | SDK/docs/distribution | mod template; local repo; Workshop later |
 
 Order: data → C# → Lua. Do not build the distributor or Lua host before the data/API layers.

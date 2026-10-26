@@ -19,6 +19,8 @@ Authority: `src/Meitou.Game/GameOptions.cs` (`Split`, `Usage`), `src/Meitou.Game
 | `--load <folder>` | save folder | none | Start in a save, Meitou's or the original game's. With `--screenshot` too. |
 | `--seed <n>` | integer | 0 | World seed. A new game from the menu keeps it once given. |
 | `--no-population` | | off | No residents or movement. |
+| `--safe-mode` | | off | Start the base game only: no enabled mods, no mod level folders, no C#/Lua mod code; `mods.cfg` is not changed. A save made in this mode records the base set. |
+| `--validate-mods` | | | Validate enabled manifests, dependencies, content, assets and code-file paths, print the load order and exit. |
 | `--move-to <x> <z>` | two numbers | none | With `--new-game`: select the squad and walk it there (pictures). |
 | `--ticks <n>` | count | 0 | With `--screenshot`: run n control ticks before the picture. |
 | `--quit-after <s>` | seconds | none | Close after s seconds and print the frame rate (smoke test). |

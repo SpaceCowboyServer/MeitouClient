@@ -44,7 +44,7 @@ sealed partial class GameHost
         return new SaveCaptureOptions
         {
             DataFiles = saveDataFiles, Placements = townPlacements, Levels = saveLevels, Seed = session.World.Seed ^ (ulong)++captures << 20,
-            View = new SavedView(view.Pivot, view.Yaw, view.Pitch, view.Distance),
+            View = new SavedView(view.Pivot, view.Yaw, view.Pitch, view.Distance), Mods = currentMods,
         };
     }
 
@@ -262,7 +262,10 @@ sealed partial class GameHost
             Stage("build", () =>
             {
                 if ((options & ImportOptions.ResetPositions) != 0 && nav is not null && read!.IsCompletedSuccessfully) SaveImport.PlaceOnGround(read.Result, nav.Walkability.GroundHeight);
-                return SwapInSave(read!, interactive: true, out summary, new SaveLoadOptions { Appearances = data.Appearances, ResetRelations = (options & ImportOptions.Relations) == 0 });
+                return SwapInSave(read!, interactive: true, out summary, new SaveLoadOptions
+                {
+                    Appearances = data.Appearances, ResetRelations = (options & ImportOptions.Relations) == 0, CurrentMods = currentMods,
+                });
             }),
             Stage("finishing", () => { SettleNewWorld(); player.FollowSelected(); FinishLoadNotice(summary, imported: true); return null; }));
     }
@@ -292,7 +295,7 @@ sealed partial class GameHost
             // A world that fails to load leaves the old one running (ReplaceWorld drops the half-made one).
             session.ReplaceWorld(built.Systems, world =>
             {
-                loaded = SaveLoader.Load(world, read.Result, data, loadOptions ?? new SaveLoadOptions { Appearances = data.Appearances });
+                loaded = SaveLoader.Load(world, read.Result, data, loadOptions ?? new SaveLoadOptions { Appearances = data.Appearances, CurrentMods = currentMods });
                 if (world.Squads.Find(world.Player.Squad) is { Members.Count: > 0 } squad)
                 {
                     world.Player.Selection.Clear();
@@ -355,10 +358,12 @@ sealed partial class GameHost
     {
         Console.WriteLine($"load      {summary}");
         var missing = loadedSave?.MissingMods ?? [];
+        var issues = loadedSave?.ModIssues ?? [];
+        int count = missing.Count + issues.Count;
         // The message panel fits a line or two: it gives the count, the message log the names.
-        if (missing.Count == 0) player.Notice(imported ? "Imported" : "Loaded");
-        else player.Notice($"Loaded; the save was made with {missing.Count} mod(s) not loaded now (listed in the messages)", true,
-            $"Loaded; the save was made with mods not loaded now: {string.Join(", ", missing)}");
+        if (count == 0) player.Notice(imported ? "Imported" : "Loaded");
+        else player.Notice($"Loaded; the save has {count} mod issue(s) (listed in the messages)", true,
+            $"Loaded; save/mod issues: {string.Join(" ", missing.Concat(issues))}");
     }
 
     /// <summary>

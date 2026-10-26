@@ -12,6 +12,12 @@ public sealed class LoadOrder
     /// <summary>Core files, always first and in this order (a fixed list in the game; missing ones are skipped).</summary>
     public static readonly IReadOnlyList<string> BaseFiles = ["gamedata.base", "Newwworld.mod", "Dialogue.mod", "rebirth.mod"];
 
+    /// <summary>
+    /// Set by the game for <c>--safe-mode</c>: every load order is the base game only, without <c>mods.cfg</c> and without mod level folders. Process-wide
+    /// because the renderer and the loader both ask for a load order; the game reads no mod code in this mode.
+    /// </summary>
+    public static bool SafeMode { get; set; }
+
     public List<LoadOrderEntry> Entries { get; } = [];
 
     public List<GameDataIssue> Issues { get; } = [];
@@ -32,14 +38,17 @@ public sealed class LoadOrder
         return order;
     }
 
-    public static LoadOrder FromInstall(GameInstall install)
+    public static LoadOrder FromInstall(GameInstall install) => FromInstall(install, SafeMode);
+
+    /// <summary><see cref="FromInstall(GameInstall)"/> with an explicit policy, for diagnostics and tests that must not change the process-wide setting.</summary>
+    public static LoadOrder FromInstall(GameInstall install, bool safeMode)
     {
-        var order = FromInstallFiles(install);
+        var order = FromInstallFiles(install, safeMode);
         order.Language = GameLanguage.Detect(install, order.Entries.Where(e => !BaseFiles.Contains(e.Name)).Select(e => Path.GetDirectoryName(e.Path)!));
         return order;
     }
 
-    static LoadOrder FromInstallFiles(GameInstall install)
+    static LoadOrder FromInstallFiles(GameInstall install, bool safeMode)
     {
         var order = new LoadOrder();
         foreach (var name in BaseFiles)
@@ -49,6 +58,8 @@ public sealed class LoadOrder
                 order.Entries.Add(new LoadOrderEntry(name, path));
         }
 
+        if (safeMode)
+            return order;
         var modsCfg = Path.Combine(install.DataDirectory, "mods.cfg");
         if (!File.Exists(modsCfg))
             return order;
