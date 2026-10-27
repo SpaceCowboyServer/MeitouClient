@@ -67,10 +67,10 @@ place. The original game ignores the package format and the Meitou manifest; aft
 
 ## First-slice samples
 
-- [frontier.bounties](../sdk/samples/frontier.bounties): C# plugin; provides the shared `BountyContractCatalog` under
-  `ModServiceKeys.BountyContracts`, registers a system and an `ISaveable`, and has no custom assets.
-- [frontier.bounty.dust_bandit](../sdk/samples/frontier.bounty.dust_bandit): data-less Lua content; depends on `frontier.bounties` and
-  registers a Dust Bandits faction contract, logging accepted/completed events.
+- [frontier.bounties](../sdk/samples/frontier.bounties): C# plugin; registers a Dust Bandits contract through `IModContext.Bounties`,
+  subscribes to shared events, keeps an `ISaveable` heartbeat, and has no custom assets.
+- [frontier.bounty.dust_bandit](../sdk/samples/frontier.bounty.dust_bandit): data-less Lua content; depends on `frontier.bounties`,
+  registers a Dust Bandits faction contract, declares the `events:bounty` and `contracts:write` permissions, and logs accepted/completed events.
 
 `frontier.revolver` remains blocked on custom icon/mesh/sound assets; a data-only stand-in would not demonstrate the asset pipeline.
 

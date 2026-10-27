@@ -1,8 +1,8 @@
 # frontier.bounties
 
-The sample C# bounty framework. It provides the shared `BountyContractCatalog` under `ModServiceKeys.BountyContracts`; the game passes that
-catalog to the bounty board and to the Lua host, so Lua content such as [frontier.bounty.dust_bandit](../frontier.bounty.dust_bandit) adds offers
-to the same board. It also registers an `ITickSystem` and an `ISaveable`, so loading it exercises the plugin system and sidecar paths.
+The sample C# bounty framework. It registers a Dust Bandits contract through `IModContext.Bounties`, subscribes to the shared
+`BountyCompleted` and `WorldTick` events, and keeps a small `ISaveable` heartbeat so loading it exercises the sidecar path. The
+game's one catalog is shared with Lua content such as [frontier.bounty.dust_bandit](../frontier.bounty.dust_bandit).
 
 ## Build and pack
 
@@ -17,4 +17,5 @@ The project copies `lib/FrontierBounties.dll` after a build (the file is git-ign
 missing, so build before packing. The generated package contains an empty `.mod`; copy it to a local repository or install it with
 `meitou-tools mod install` and enable it in the launcher.
 
-`frontier.bounty.dust_bandit` depends on this mod. See [modding-csharp](../../../docs/modding-csharp.md) for the plugin contract.
+`frontier.bounty.dust_bandit` depends on this mod. See [modding-csharp](../../../docs/modding-csharp.md) and
+[modding-api](../../../docs/modding-api.md) for the contracts.

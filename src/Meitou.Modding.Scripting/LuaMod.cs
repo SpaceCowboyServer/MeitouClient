@@ -1,8 +1,8 @@
 using Meitou.Data;
 using Meitou.Data.Fcs;
 using Meitou.Modding;
+using Meitou.Modding.Api;
 using Meitou.Simulation;
-using Meitou.Simulation.Bounties;
 using MoonSharp.Interpreter;
 
 namespace Meitou.Modding.Scripting;
@@ -15,16 +15,20 @@ sealed class LuaMod
 
     readonly Action<string> write;
     readonly GameDatabase data;
-    readonly BountyContractCatalog contracts;
+    readonly IModApiHost api;
+    readonly IBountyContracts contracts;
+    readonly IReadOnlyList<string> permissions;
     readonly Script script;
     readonly Dictionary<string, List<DynValue>> callbacks = new(StringComparer.Ordinal);
 
-    internal LuaMod(ModCandidate candidate, GameDatabase data, BountyContractCatalog contracts, Action<string> write, string source)
+    internal LuaMod(ModCandidate candidate, GameDatabase data, IModApiHost api, Action<string> write, string source)
     {
         Id = candidate.Id;
         this.data = data;
-        this.contracts = contracts;
+        this.api = api;
         this.write = write;
+        permissions = candidate.Manifest.Permissions ?? [];
+        contracts = api.BountiesFor(Id);
         script = new Script(CoreModules.Preset_HardSandbox);
         script.Options.DebugPrint = Log;
         script.Options.UseLuaErrorLocations = true;
@@ -58,7 +62,7 @@ sealed class LuaMod
         if (!Active) return;
         Active = false;
         callbacks.Clear();
-        contracts.RemoveSource(Id);
+        api.RemoveBounties(Id);
         Log("disabled: " + message);
     }
 
@@ -90,6 +94,7 @@ sealed class LuaMod
             {
                 if (!Events.Contains(name, StringComparer.Ordinal))
                     throw new ScriptRuntimeException($"meitou.events.on: unknown event '{name}'.");
+                Require(EventPermission(name), "meitou.events.on");
                 if (handler.Type != DataType.Function)
                     throw new ScriptRuntimeException("meitou.events.on: the handler must be a function.");
                 if (!callbacks.TryGetValue(name, out var list)) callbacks[name] = list = [];
@@ -108,36 +113,38 @@ sealed class LuaMod
 
     string RegisterContract(Table table)
     {
+        Require(ModPermissions.ContractsWrite, "meitou.contracts.register");
+
         string localId = Text(table, "id");
         if (localId.Length is 0 or > 64 || localId.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('_' or '-' or '.')))
             throw new ScriptRuntimeException("meitou.contracts.register: id must use letters, digits, '_', '-' or '.'.");
 
-        var kind = Text(table, "kind") switch
+        var target = Text(table, "kind") switch
         {
-            "faction" => BountyTargetKind.Faction,
-            "animal" => BountyTargetKind.AnimalSpecies,
-            "spawned" => BountyTargetKind.Spawned,
+            "faction" => BountyTarget.Faction,
+            "animal" => BountyTarget.AnimalSpecies,
+            "spawned" => BountyTarget.Spawned,
             var other => throw new ScriptRuntimeException($"meitou.contracts.register: unknown kind '{other}'."),
         };
-        var objective = Text(table, "objective", "kill") switch
+        var goal = Text(table, "objective", "kill") switch
         {
-            "kill" => BountyObjective.Kill,
-            "capture" => BountyObjective.Capture,
+            "kill" => BountyGoal.Kill,
+            "capture" => BountyGoal.Capture,
             var other => throw new ScriptRuntimeException($"meitou.contracts.register: unknown objective '{other}'."),
         };
 
         string factionId = Text(table, "faction");
         string record = Text(table, "record");
-        if (kind is BountyTargetKind.Faction or BountyTargetKind.Spawned)
+        if (target is BountyTarget.Faction or BountyTarget.Spawned)
             factionId = ResolveRecord(factionId, FcsRecordType.FACTION, "faction").StringId;
-        if (kind == BountyTargetKind.AnimalSpecies)
+        if (target == BountyTarget.AnimalSpecies)
         {
             var animal = ResolveRecord(record, FcsRecordType.ANIMAL_CHARACTER, "record");
             if (UniqueCharacters.IsUnique(animal))
                 throw new ScriptRuntimeException($"meitou.contracts.register: animal '{animal.StringId}' is unique.");
             record = animal.StringId;
         }
-        if (kind == BountyTargetKind.Spawned)
+        if (target == BountyTarget.Spawned)
         {
             var character = ResolveRecord(record, FcsRecordType.CHARACTER, "record");
             if (UniqueCharacters.IsUnique(character))
@@ -145,21 +152,28 @@ sealed class LuaMod
             record = character.StringId;
         }
 
-        string id = $"{Id}:bounty/{localId}";
-        var definition = new BountyContractDefinition
-        {
-            Id = id,
-            Kind = kind,
-            Objective = objective,
-            Title = Text(table, "title", localId),
-            Detail = Text(table, "detail"),
-            TargetRecord = kind is BountyTargetKind.AnimalSpecies or BountyTargetKind.Spawned ? record : "",
-            FactionId = kind is BountyTargetKind.Faction or BountyTargetKind.Spawned ? factionId : "",
-            Required = Int(table, "required", 1),
-            Reward = Int(table, "reward", 0),
-        };
-        contracts.Register(Id, definition);
-        return id;
+        return contracts.Register(new BountyDefinition(
+            LocalId: localId,
+            Target: target,
+            Goal: goal,
+            Title: Text(table, "title", localId),
+            Detail: Text(table, "detail"),
+            TargetRecord: target is BountyTarget.AnimalSpecies or BountyTarget.Spawned ? record : "",
+            FactionId: target is BountyTarget.Faction or BountyTarget.Spawned ? factionId : "",
+            Required: Int(table, "required", 1),
+            Reward: Int(table, "reward", 0)));
+    }
+
+    static string EventPermission(string name) => name.StartsWith("bounty.", StringComparison.Ordinal)
+        ? ModPermissions.EventsBounty
+        : ModPermissions.EventsWorld;
+
+    bool Allows(string permission) => permissions.Count == 0 || permissions.Contains(permission, StringComparer.Ordinal);
+
+    void Require(string permission, string action)
+    {
+        if (!Allows(permission))
+            throw new ScriptRuntimeException($"{action}: permission '{permission}' is not declared in meitou.json.");
     }
 
     GameRecord ResolveRecord(string value, FcsRecordType type, string label)

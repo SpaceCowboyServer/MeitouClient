@@ -19,6 +19,7 @@ data-mod rules.
   "optional": { "frontier.weather": ">=0.5" },
   "provides": ["frontier.contracts@1"],
   "loadAfter": ["frontier.bounties"],
+  "permissions": ["events:bounty", "contracts:write"],
   "content": ["content/"],
   "assets": ["assets/"],
   "trust": "script",
@@ -37,6 +38,7 @@ data-mod rules.
 | `provides` | Capabilities such as `frontier.contracts@1`. A dependency on the capability ID checks the capability version, or the provider's mod version when `@` is absent. |
 | `loadAfter` | Soft ordering edges to enabled mods or capability providers. Missing targets are ignored. |
 | `conflicts` | Enabled mods or capability providers that cannot be loaded together. |
+| `permissions` | Script capabilities: `events:world`, `events:bounty`, `contracts:write`. Unknown/duplicate entries are errors; an absent or empty list keeps the API 1 legacy defaults. C# plugins are trusted. |
 | `content` | Relative content roots, e.g. `content/`; must stay inside the mod folder. Parsed in Phase 2. |
 | `assets` | Relative asset roots; same path rules. Parsed in Phase 2. |
 | `trust` | `data`, `script` or `plugin` (lowercase). Native plugins are unsupported. |

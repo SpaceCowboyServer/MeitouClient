@@ -6,6 +6,18 @@ public static class ModApi
     public const int CurrentVersion = 1;
 }
 
+/// <summary>The capabilities a script mod may declare in its manifest. C# plugins are trusted and do not need them.</summary>
+public static class ModPermissions
+{
+    public const string EventsWorld = "events:world";
+    public const string EventsBounty = "events:bounty";
+    public const string ContractsWrite = "contracts:write";
+
+    public static IReadOnlyList<string> All { get; } = [EventsWorld, EventsBounty, ContractsWrite];
+
+    public static bool IsKnown(string? permission) => permission is EventsWorld or EventsBounty or ContractsWrite;
+}
+
 /// <summary>Namespaced, case-sensitive IDs. A mod ID has at least two dot-separated segments, e.g. <c>frontier.revolver</c>.</summary>
 public static class ModId
 {

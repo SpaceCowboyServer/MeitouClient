@@ -1,8 +1,9 @@
 # C# modding API
 
-**Status: Phase 3 host implemented (2026-10-26).** Enabled `trust: plugin` mods load after the data merge, register services/systems/
-saveables and are validated at startup. Lua scripts use the separate [modding-lua](modding-lua.md) host; RE_Kenshi DLLs stay ignored
-([rekenshi](formats/rekenshi.md)). The game remains a JIT build; the Native AOT launcher loads no mod code.
+**Status: implemented (2026-10-27).** Enabled `trust: plugin` mods load after the data merge and register stable events/contracts,
+services, systems and saveables. The same contracts are available to Lua through [modding-lua](modding-lua.md); the full DTO/event
+reference is [modding-api](modding-api.md). RE_Kenshi DLLs stay ignored ([rekenshi](formats/rekenshi.md)). The game remains a JIT
+build; the Native AOT launcher loads no mod code.
 
 ## Discovery and loading
 
@@ -38,11 +39,20 @@ public interface IModContext
     ulong RandomSalt { get; }
     IModLog Log { get; }
     IModServices Services { get; }
+    IModEvents Events { get; }
+    IBountyContracts Bounties { get; }
+    IBountyBoard Board { get; }
     void AddSystem(Func<ITickSystem> factory);
     void AddSaveable(ISaveable saveable);
     void Enqueue(SimCommand command);
 }
 ```
+
+- **Events:** `context.Events.Subscribe<WorldTick>(...)` and the other DTOs in [modding-api](modding-api.md). Handlers run on the
+  simulation thread; a throwing handler is logged without stopping other handlers or the world.
+- **Bounties:** `context.Bounties.Register(new BountyDefinition(...))` registers one content contract; `context.Board` reads the
+  current offers/active view. The game owns the catalog, so a plugin no longer provides one under
+  `ModServiceKeys.BountyContracts` (that key is legacy only).
 
 - **Systems:** `AddSystem(Func<ITickSystem>)` appends a factory after the standard systems. The factory runs once for each new world, in
   mod load order and registration order; the first version has no before/after anchors. Plugin systems obey the determinism contract in
@@ -53,10 +63,9 @@ public interface IModContext
 - **Services:** a string-keyed registry shared by the loaded mods (`Provide`, `TryGet`, `Get<T>`). Earlier mods register first; a duplicate
   key is an error. Typed services work when both mods reference the same contract assembly loaded in the default context. Cross-mod
   private contract assemblies are not unified yet.
-- **Bounty catalog:** a framework plugin can provide a `Meitou.Simulation.Bounties.BountyContractCatalog` under
-  `ModServiceKeys.BountyContracts`. `GameHost` passes that catalog to the Lua host and the bounty board, so C# and Lua definitions share
-  one offer set. The [frontier.bounties sample](../sdk/samples/frontier.bounties) does this; no plugin provider means the game creates a
-  private catalog for Lua scripts.
+- **Shared bounty registry:** `GameHost` creates one catalog and gives the same scoped API to C# and Lua, so both tiers share one offer
+  set. The [frontier.bounties sample](../sdk/samples/frontier.bounties) registers a contract through `context.Bounties` and subscribes
+  to `BountyCompleted`.
 - **Logging:** `Info`/`Warn`/`Error` write to the game's console/log with the mod ID.
 
 ## Saves
@@ -84,5 +93,5 @@ public interface IModContext
 - Shared save sidecars and command/resource access from Lua.
 - Collectible contexts, unload and hot reload.
 - Merging separately loaded private contract assemblies for typed cross-mod services.
-- A stable typed API and shared event bus; the proposed C#/Lua contract is in [modding-api](modding-api.md). The current `World`/`GameDatabase` access is a trusted escape hatch.
+- Removing the trusted `World`/`GameDatabase` escape hatch; it is an API 2 decision.
 - Automatic dependency installation and save migration when a mod is removed or upgraded.

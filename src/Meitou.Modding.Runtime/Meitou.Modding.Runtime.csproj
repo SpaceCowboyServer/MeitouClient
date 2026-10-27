@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The shared event bus and the game-side adapters for the stable mod API. JIT-only, like the hosts. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Meitou.Modding.Api\Meitou.Modding.Api.csproj" />
+    <ProjectReference Include="..\Meitou.Simulation\Meitou.Simulation.csproj" />
+  </ItemGroup>
+</Project>

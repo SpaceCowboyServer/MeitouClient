@@ -15,13 +15,16 @@ sealed class ModContext : IModContext, IModLog, IModServices
     readonly List<ISaveable> saveables = [];
     readonly HashSet<string> saveableKeys = new(StringComparer.Ordinal);
 
-    public ModContext(ModCandidate candidate, GameDatabase data, ModServices services, Action<string> write, ModPluginHost host)
+    public ModContext(ModCandidate candidate, GameDatabase data, ModServices services, IModApiHost api, Action<string> write, ModPluginHost host)
     {
         Id = candidate.Id;
         Version = candidate.Manifest.Version;
         Folder = candidate.Folder;
         Data = data;
         sharedServices = services;
+        Events = api.Events;
+        Bounties = api.BountiesFor(candidate.Id);
+        Board = api.Board;
         RandomSalt = Rng.StableHash(candidate.Id);
         this.write = write;
         this.host = host;
@@ -32,6 +35,9 @@ sealed class ModContext : IModContext, IModLog, IModServices
     public string Folder { get; }
     public int ApiVersion => ModApi.CurrentVersion;
     public GameDatabase Data { get; }
+    public IModEvents Events { get; }
+    public IBountyContracts Bounties { get; }
+    public IBountyBoard Board { get; }
     public ulong RandomSalt { get; }
     public IModLog Log => this;
     public IModServices Services => this;

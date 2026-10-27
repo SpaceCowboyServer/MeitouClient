@@ -30,11 +30,12 @@ public sealed class ModPluginHost
     public IReadOnlyList<string> LoadedModIds => [.. sessions.Select(session => session.Id)];
     public IModServices Services => services;
 
-    public static ModPluginHost Load(GameInstall install, GameDatabase data, Action<string>? write = null) =>
-        Load(ModDiscovery.Resolve(install), data, write);
+    public static ModPluginHost Load(GameInstall install, GameDatabase data, IModApiHost api, Action<string>? write = null) =>
+        Load(ModDiscovery.Resolve(install), data, api, write);
 
-    public static ModPluginHost Load(ModResolution resolution, GameDatabase data, Action<string>? write = null)
+    public static ModPluginHost Load(ModResolution resolution, GameDatabase data, IModApiHost api, Action<string>? write = null)
     {
+        ArgumentNullException.ThrowIfNull(api);
         var log = write ?? Console.WriteLine;
         var host = new ModPluginHost(log);
         foreach (var issue in resolution.Errors)
@@ -42,7 +43,7 @@ public sealed class ModPluginHost
         foreach (var candidate in resolution.Order)
         {
             if (candidate.Manifest.Trust != ModTrust.Plugin) continue;
-            try { host.LoadMod(candidate, data); }
+            try { host.LoadMod(candidate, data, api); }
             catch (Exception e)
             {
                 log($"mods: '{candidate.FolderName}' could not be loaded: {e.Message}");
@@ -51,7 +52,7 @@ public sealed class ModPluginHost
         return host;
     }
 
-    void LoadMod(ModCandidate candidate, GameDatabase data)
+    void LoadMod(ModCandidate candidate, GameDatabase data, IModApiHost api)
     {
         var manifest = candidate.Manifest;
         if (manifest.ApiVersion != ModApi.CurrentVersion)
@@ -109,11 +110,12 @@ public sealed class ModPluginHost
             return;
         }
 
-        var modContext = new ModContext(candidate, data, services, write, this);
+        var modContext = new ModContext(candidate, data, services, api, write, this);
         try { mod.Initialize(modContext); }
         catch
         {
             foreach (string key in modContext.ProvidedServiceKeys) services.Remove(key);
+            api.RemoveBounties(candidate.Id);
             throw;
         }
         var session = new ModSession

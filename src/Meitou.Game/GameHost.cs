@@ -14,6 +14,7 @@ using Meitou.Rendering.Display;
 using Meitou.Modding;
 using Meitou.Modding.Api;
 using Meitou.Modding.Plugins;
+using Meitou.Modding.Runtime;
 using Meitou.Modding.Scripting;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -45,6 +46,8 @@ sealed partial class GameHost(GameInstall install, WorldScene scene, AssetLocato
     Meitou.Simulation.PopulationData? popData;
     ModPluginHost? modHost;
     LuaModHost? scriptHost;
+    /// <summary>The one event bus and bounty adapter shared by the plugin and Lua hosts; null in safe mode.</summary>
+    ModApiRuntime? modApi;
     /// <summary>The one contract catalog the plugin and Lua hosts register into and the board reads; null in safe mode.</summary>
     Meitou.Simulation.Bounties.BountyContractCatalog? bountyContracts;
     /// <summary>The enabled mod set captured in saves and compared on load; empty in safe mode.</summary>
@@ -225,16 +228,15 @@ sealed partial class GameHost(GameInstall install, WorldScene scene, AssetLocato
             if (!g.SafeMode)
             {
                 var modResolution = ModDiscovery.Resolve(install);
-                modHost = ModPluginHost.Load(modResolution, gameDb);
-                // A framework plugin may contribute the board catalog; scripts register into the same one. Without a provider the host still gets a private catalog.
-                bountyContracts = modHost.Services.Get<Meitou.Simulation.Bounties.BountyContractCatalog>(ModServiceKeys.BountyContracts)
-                    ?? new Meitou.Simulation.Bounties.BountyContractCatalog();
-                scriptHost = LuaModHost.Load(modResolution, gameDb, bountyContracts);
+                modApi = new ModApiRuntime(Console.WriteLine);
+                modHost = ModPluginHost.Load(modResolution, gameDb, modApi, Console.WriteLine);
+                bountyContracts = modApi.Contracts;
+                scriptHost = LuaModHost.Load(modResolution, gameDb, modApi, Console.WriteLine);
                 currentMods = ModSnapshots.Current(install, modResolution);
                 if (modHost.PluginCount > 0)
                     Console.WriteLine($"mods      {modHost.PluginCount} C# plugin(s), {modHost.SystemCount} system(s), {modHost.SaveableCount} saveable(s)");
                 if (scriptHost.ScriptCount > 0 || bountyContracts.Definitions.Count > 0)
-                    Console.WriteLine($"mods      {scriptHost.ScriptCount} Lua script(s), {scriptHost.SystemCount} system(s), {bountyContracts.Definitions.Count} contract(s)");
+                    Console.WriteLine($"mods      {scriptHost.ScriptCount} Lua script(s), {bountyContracts.Definitions.Count} contract(s)");
             }
             var built = BuildSystems(interactive);
             population = built.Population;

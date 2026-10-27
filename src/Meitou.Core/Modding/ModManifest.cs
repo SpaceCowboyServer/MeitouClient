@@ -21,6 +21,7 @@ public sealed class ModManifest
     public List<string> Provides { get; set; } = [];
     public List<string> LoadAfter { get; set; } = [];
     public List<string> Conflicts { get; set; } = [];
+    public List<string> Permissions { get; set; } = [];
     public List<string> Content { get; set; } = [];
     public List<string> Assets { get; set; } = [];
     public ModTrust Trust { get; set; } = ModTrust.Data;
@@ -72,6 +73,7 @@ public sealed class ModManifest
         Provides ??= [];
         LoadAfter ??= [];
         Conflicts ??= [];
+        Permissions ??= [];
         Content ??= [];
         Assets ??= [];
         Assemblies ??= [];
@@ -118,6 +120,14 @@ public static class ModManifestValidation
             if (!ModId.IsValid(id)) return $"loadAfter entry '{id}' is not a mod ID.";
         foreach (string? id in manifest.Conflicts)
             if (!ModId.IsValid(id)) return $"conflicts entry '{id}' is not a mod ID.";
+
+        var permissions = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string? permission in manifest.Permissions)
+        {
+            if (!ModPermissions.IsKnown(permission))
+                return $"permission '{permission}' is not known; use 'events:world', 'events:bounty' or 'contracts:write'.";
+            if (!permissions.Add(permission)) return $"permissions lists '{permission}' more than once.";
+        }
 
         foreach (string? path in manifest.Content)
             if (!ModPath.IsSafeRelative(path)) return $"content path '{path}' must stay inside the mod folder.";

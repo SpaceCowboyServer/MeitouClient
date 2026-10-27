@@ -1,6 +1,5 @@
 using Meitou.Modding;
 using Meitou.Modding.Api;
-using Meitou.Simulation.Bounties;
 
 namespace Meitou.Tests.Modding;
 
@@ -22,17 +21,18 @@ public sealed class BountyProviderMod : IMod
 {
     public void Initialize(IModContext context)
     {
-        var catalog = new BountyContractCatalog();
-        catalog.Register(context.Id, new BountyContractDefinition
-        {
-            Id = context.Id + ":bounty/plugin",
-            Kind = BountyTargetKind.Faction,
-            Objective = BountyObjective.Kill,
-            FactionId = "20-t",
-            Title = "Plugin contract",
-            Reward = 1,
-        });
-        context.Services.Provide(ModServiceKeys.BountyContracts, catalog);
+        var events = new List<string>();
+        context.Services.Provide("events", events);
+        string id = context.Bounties.Register(new BountyDefinition(
+            LocalId: "plugin",
+            Target: BountyTarget.Faction,
+            Goal: BountyGoal.Kill,
+            Title: "Plugin contract",
+            FactionId: "20-t",
+            Reward: 1));
+        context.Services.Provide("contract-id", id);
+        context.Events.Subscribe<BountyAccepted>(accepted => events.Add("accepted:" + accepted.Id));
+        context.Events.Subscribe<BountyCompleted>(completed => events.Add("completed:" + completed.Id));
     }
 }
 
@@ -47,6 +47,20 @@ public sealed class FailingAfterServiceMod : IMod
     {
         context.Services.Provide("rolled-back", new object());
         throw new InvalidOperationException("fails after a service");
+    }
+}
+
+public sealed class FailingAfterBountyMod : IMod
+{
+    public void Initialize(IModContext context)
+    {
+        context.Bounties.Register(new BountyDefinition(
+            LocalId: "rolled-back",
+            Target: BountyTarget.Faction,
+            Goal: BountyGoal.Kill,
+            Title: "Rolled back",
+            FactionId: "20-t"));
+        throw new InvalidOperationException("fails after a bounty");
     }
 }
 

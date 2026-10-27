@@ -1,8 +1,9 @@
 # Modding foundation
 
-**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host, the Lua host, save mod metadata, safe mode,
-`--validate-mods`, the core contract board (faction, animal, named and spawned targets), the SDK/package/local-repository flow and the
-launcher package install button, with no-asset C# and Lua samples, are implemented (2026-10-27); applying YAML content to gameplay is planned.** The RE_Kenshi
+**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host, the Lua host, the shared typed event bus and
+bounty API, save mod metadata, safe mode, `--validate-mods`, the core contract board (faction, animal, named and spawned targets), the
+SDK/package/local-repository flow and the launcher package install button, with no-asset C# and Lua samples, are implemented (2026-10-27);
+applying YAML content to gameplay is planned.** The RE_Kenshi
 decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay ignored. Data-only Kenshi mods load through the normal readers;
 Meitou's own mods use this plan.
 
@@ -17,7 +18,7 @@ Three mods prove the foundation:
 | Mod | Type | Proves |
 |---|---|---|
 | `frontier.revolver` | data + assets | item, icon, mesh, sound, load order |
-| `frontier.bounties` | C# plugin | contract service, events, save, core bounty UI |
+| `frontier.bounties` | C# plugin | shared bounty API, events, save, core bounty UI |
 | `frontier.bounty.dust_bandit` | Lua + plugin dependency | contract content, dependency, events (no custom assets) |
 
 Done when: the launcher resolves the three; the revolver item appears; a bounty is offered, tracked, paid and saved;
@@ -27,8 +28,9 @@ a broken Lua script does not crash the game.
 The **core** part of the bounty slice is implemented as `BountyBoardSystem`: faction-group, animal-species, named non-story and fallback spawned-target
 offers, accept/abandon, progress, payment, the faction-tab UI and CAMERA/character save keys. Lua scripts can register faction, animal and spawned
 contracts through `meitou.contracts.register` and observe the board's events. The external C# framework and Lua content samples live in
-[`sdk/samples`](../sdk/samples) and share one `BountyContractCatalog` ([modding-sdk](modding-sdk.md)); YAML-defined contract targets/rewards and
-rank/progression remain later work. The asset-dependent `frontier.revolver` sample is blocked on custom icon/mesh/sound files.
+[`sdk/samples`](../sdk/samples) and share the typed API and event bus in [modding-api](modding-api.md); YAML-defined contract
+targets/rewards and rank/progression remain later work. The asset-dependent `frontier.revolver` sample is blocked on custom
+icon/mesh/sound files.
 
 ## Layers
 
@@ -37,7 +39,7 @@ rank/progression remain later work. The asset-dependent `frontier.revolver` samp
 | Manifest, discovery, resolver | `meitou.json`, dependencies, semver, load order, profile lockfile, trust |
 | VFS and assets | mount mod folders, override by load order, typed asset IDs/handles |
 | Content | YAML definitions, schemas, validation, registry |
-| API facade | stable contracts and lifecycle; direct simulation access is an open decision |
+| API facade | stable events/contracts and lifecycle; direct simulation access is a trusted escape hatch in API 1 |
 | C# plugins | `AssemblyLoadContext`, API version, trusted opt-in |
 | Lua | sandboxed scripts over a subset of the same API |
 | Lifecycle/save | mod list/versions in save, sidecar state, safe mode |
@@ -75,22 +77,22 @@ The engine owns loading; mod code gets handles/services. Shaders, native formats
 
 The API is a facade over the game's systems, used by data, C# and Lua:
 
-- **Core services:** `IWorldQuery`, `IEvents`, `ICommands`, `IScheduler`, `ISave`, `IAssets`, `IContent`, `IUi`
-  (core UI/notifications, not mod-drawn panels in v1), `IAudio`, `ILocalization`, `IServices`, `ILog`.
-- **Domain services:** contracts/quests, dialogue, factions/reputation, economy, combat, AI, inventory/building/law as
-  those systems exist.
-- C# mods implement `IMod` and receive `IModContext`; Lua currently receives the logging and contract/event subset in
-  [modding-lua](modding-lua.md). `Meitou.Modding.Api` owns the contracts/DTOs/IDs; `Meitou.Game` owns the adapters. A plugin may expose
-  its own service to content packs, with a declared dependency/API version.
+- **Implemented:** `IModContext`, `IModEvents`, `IBountyContracts`, `IBountyBoard`, `IModLog`, `IModServices`, `ISaveable`.
+- **Later:** `IWorldQuery`, `ICommands`, `IScheduler`, `IAssets`, `IContent`, `IUi` (core UI/notifications, not mod-drawn
+  panels in v1), `IAudio`, `ILocalization`, dialogue/faction/economy domains.
+- C# mods implement `IMod` and receive `IModContext`; Lua receives the logging, contract and event subset in
+  [modding-lua](modding-lua.md). `Meitou.Modding.Api` owns the contracts/DTOs/IDs; `Meitou.Modding.Runtime` owns the adapters. A plugin may
+  expose its own service to content packs, with a declared dependency/API version.
 
 ## Code
 
 ### C# (first)
 
 The C# plugin API and host are implemented; the current contract, registration surface and limitations are in
-[modding-csharp](modding-csharp.md). `Meitou.Modding.Api` holds `IMod`/`IModContext`/`ISaveable`; `Meitou.Modding.Plugins`
-loads one non-collectible `AssemblyLoadContext` per enabled plugin, appends its per-world systems, and reads/writes
-`meitou-mods/<id>.bin` save sidecars. Lua uses its own host and has no save sidecar yet.
+[modding-csharp](modding-csharp.md). `Meitou.Modding.Api` holds `IMod`/`IModContext`/`IModEvents`/`ISaveable`;
+`Meitou.Modding.Plugins` loads one non-collectible `AssemblyLoadContext` per enabled plugin, appends its per-world systems, and
+reads/writes `meitou-mods/<id>.bin` save sidecars. `Meitou.Modding.Runtime` provides the shared event bus and bounty adapter.
+Lua uses its own host and has no save sidecar yet.
 
 ### Lua
 
@@ -104,7 +106,8 @@ is a development feature; no unload for C#.
 | Project | Responsibility |
 |---|---|
 | `src/Meitou.Core/Modding` | manifest, resolver, profiles, lockfile (AOT, launcher + game) |
-| `src/Meitou.Modding.Api` | stable plugin contracts over the public Data/Simulation types |
+| `src/Meitou.Modding.Api` | stable plugin contracts, DTOs and permissions over the public Data/Simulation types |
+| `src/Meitou.Modding.Runtime` | shared event bus and game-side API adapters |
 | `src/Meitou.Modding` | VFS, content, assets, asset cache |
 | `src/Meitou.Modding.Scripting` | Lua host and bindings |
 | `src/Meitou.Modding.Plugins` | C# ALC host, services, systems, sidecars |
@@ -130,7 +133,7 @@ Dependency direction: `Api` references the public Data/Simulation types (direct 
 | 5 | Lua host/sandbox | **done (core):** Lua contracts/events; broken script isolated |
 | 6 | Save/lifecycle/diagnostics | **done (core):** saved mod IDs/versions, load mismatch report, safe mode, `--validate-mods` |
 | 7 | SDK/docs/distribution | **done (local):** templates, validate/pack/install, local repository, no-asset samples; Workshop later |
-| 8 | Generic API/events | **proposed:** shared C#/Lua contracts, event bus, bounty migration; [modding-api](modding-api.md) |
+| 8 | Generic API/events | **done:** shared C#/Lua contracts, event bus, bounty and permission migration; [modding-api](modding-api.md) |
 
 Order: data → C# → Lua. Do not build the distributor or Lua host before the data/API layers.
 
@@ -153,6 +156,6 @@ Order: data → C# → Lua. Do not build the distributor or Lua host before the 
 - System anchors: before/after a `StandardParts` member instead of append-only.
 - Contracts have faction-group, animal-species, named-character and fallback spawned targets; Lua can define faction/animal/spawned offers, while YAML content definitions and rank/progression are later content/UI layers.
 - Whether content items map onto FCS records or a new runtime item model.
-- The stable C#/Lua API and shared event bus are proposed in [modding-api](modding-api.md); direct simulation access stays a trusted
+- The stable C#/Lua API and shared event bus are implemented in [modding-api](modding-api.md); direct simulation access stays a trusted
   escape hatch for API 1 and is an API 2 decision.
 - Workshop needs Meitou's own Steam app; a local/custom repository comes first.

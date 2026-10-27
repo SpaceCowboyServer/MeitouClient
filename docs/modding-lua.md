@@ -1,20 +1,21 @@
 # Lua mods
 
-**Status: implemented (2026-10-26).** `src/Meitou.Modding.Scripting` uses MoonSharp 2.0.0 to run `trust: script` manifests in one hard-sandboxed
-interpreter per mod. Scripts can register contract offers and observe the board; broken script isolation and contract registration are tested.
-YAML content application, commands, assets, UI and script save state are not implemented yet.
+**Status: implemented (2026-10-27).** `src/Meitou.Modding.Scripting` uses MoonSharp 2.0.0 to run `trust: script` manifests in one hard-sandboxed
+interpreter per mod. Scripts register contracts and receive the shared `IModEvents` stream described in [modding-api](modding-api.md);
+broken script isolation, permissions and cross-language registration are tested. YAML content application, commands, assets, UI and script
+save state are not implemented yet.
 
 ## Loading
 
 - A script manifest needs `"trust": "script"` and a relative `entry`, for example `scripts/main.lua`; assemblies are refused. See
   [modding-manifest](modding-manifest.md).
-- `LuaModHost.Load(ModResolution, GameDatabase)` reads only enabled scripts, after the data merge and before `StandardSystems.Build`
+- `LuaModHost.Load(ModResolution, GameDatabase, IModApiHost)` reads only enabled scripts, after the data merge and before `StandardSystems.Build`
   ([modding-csharp](modding-csharp.md) has the matching plugin lifecycle). It skips the no-population and flat sandbox modes.
 - Entry paths use the same case-folding as game data (`GameFiles.Resolve`), stay inside the mod folder and are limited to 1 MiB.
-- A syntax error, a failing initialization, an invalid contract registration or a throwing event handler disables that script. The other scripts
-  and the game keep running; its registered contract definitions are removed. If a C# plugin provides a catalog at
-  `ModServiceKeys.BountyContracts`, Lua registers into it; otherwise the Lua host owns a private catalog.
-- The Lua host appends one system after the standard systems. It runs on the simulation thread, after the contract board has processed the tick.
+- A syntax error, a failing initialization, an invalid contract registration, a denied permission or a throwing event handler disables that
+  script. The other scripts and the game keep running; its registered contract definitions are removed.
+- The game creates one `IModApiHost` (`ModApiRuntime`) and passes it to both the C# and Lua hosts. Lua registers into the same catalog as
+  C# and built-in content. There is no Lua board-polling system: `ModRuntimeSystem` publishes the shared events after the standard systems.
 
 ## Sandbox
 
@@ -36,6 +37,20 @@ meitou.log.info(text)
 meitou.log.warn(text)
 meitou.log.error(text)
 ```
+
+### Permissions
+
+`meitou.json` may declare `permissions`:
+
+```json
+"permissions": ["events:world", "events:bounty", "contracts:write"]
+```
+
+- `events:world` allows `world.start`/`world.tick`; `events:bounty` allows `bounty.accepted`/`bounty.completed`; `contracts:write`
+  allows `meitou.contracts.register`.
+- An absent or empty list keeps the API 1 legacy default (all three allowed). A non-empty declared list is enforced strictly; a denied call
+  disables the script during initialization.
+- Unknown or duplicate permissions are manifest errors. C# plugins are trusted and not gated by this list.
 
 ### Contracts
 
@@ -94,4 +109,4 @@ contract; it uses only base-game data, so it needs no custom assets.
 - Lua commands, scheduler, asset/content queries, UI hooks and direct simulation access.
 - Lua save state; contract state is saved by the board. A small `ISaveable` bridge is planned with lifecycle work.
 - Instruction/time budgets, hot reload and unload.
-- The shared C#/Lua contract and event bus; the proposed API is in [modding-api](modding-api.md).
+- More domain contracts; the shared C#/Lua event bus is [modding-api](modding-api.md).

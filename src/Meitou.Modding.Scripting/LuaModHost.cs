@@ -1,15 +1,15 @@
 using Meitou.Content;
 using Meitou.Data;
 using Meitou.Modding;
-using Meitou.Simulation;
-using Meitou.Simulation.Bounties;
+using Meitou.Modding.Api;
+using MoonSharp.Interpreter;
 
 namespace Meitou.Modding.Scripting;
 
 /// <summary>
 /// Loads enabled <c>trust: script</c> mods after the data merge, in resolution order. Each script gets its own hard-sandboxed MoonSharp interpreter;
-/// a syntax/runtime error, a bad registration or a throwing event handler disables only that script and logs it. Scripts contribute contracts through
-/// <see cref="Contracts"/>; one appended per-world system runs their events and observes the built-in board.
+/// a syntax/runtime error, a bad registration or a throwing event handler disables only that script and logs it. Scripts register contracts and
+/// receive events through the same <see cref="IModApiHost"/> as the C# plugins.
 /// </summary>
 public sealed class LuaModHost
 {
@@ -17,31 +17,27 @@ public sealed class LuaModHost
 
     readonly Action<string> write;
     readonly List<LuaMod> scripts = [];
-    readonly BountyContractCatalog contracts;
+    readonly IModApiHost api;
 
-    LuaModHost(Action<string> write, BountyContractCatalog? contracts = null)
+    LuaModHost(IModApiHost api, Action<string> write)
     {
+        this.api = api;
         this.write = write;
-        this.contracts = contracts ?? new BountyContractCatalog();
+        api.Events.Subscribe<WorldStarted>(started => FireAll("world.start", table => FillWorld(table, started)));
+        api.Events.Subscribe<WorldTick>(tick => FireAll("world.tick", table => FillWorld(table, tick)));
+        api.Events.Subscribe<BountyAccepted>(accepted => FireAll("bounty.accepted", table => FillBounty(table, accepted)));
+        api.Events.Subscribe<BountyCompleted>(completed => FireAll("bounty.completed", table => FillBounty(table, completed)));
     }
 
     public int ScriptCount => scripts.Count;
-    public int SystemCount => scripts.Count == 0 ? 0 : 1;
     public IReadOnlyList<string> LoadedModIds => [.. scripts.Select(script => script.Id)];
-    public BountyContractCatalog Contracts => contracts;
 
-    /// <summary>
-    /// Loads scripts from an already resolved set; plugins and scripts are separate hosts but share the resolution's order within their tier.
-    /// A caller that also loaded plugins can pass the catalog they contributed, so both tiers register into one board.
-    /// </summary>
-    public static LuaModHost Load(ModResolution resolution, GameDatabase data, Action<string>? write = null) =>
-        Load(resolution, data, new BountyContractCatalog(), write);
-
-    public static LuaModHost Load(ModResolution resolution, GameDatabase data, BountyContractCatalog contracts, Action<string>? write = null)
+    /// <summary>Loads scripts from an already resolved set; plugins and scripts are separate hosts but share the runtime's API services.</summary>
+    public static LuaModHost Load(ModResolution resolution, GameDatabase data, IModApiHost api, Action<string>? write = null)
     {
-        ArgumentNullException.ThrowIfNull(contracts);
+        ArgumentNullException.ThrowIfNull(api);
         var log = write ?? Console.WriteLine;
-        var host = new LuaModHost(log, contracts);
+        var host = new LuaModHost(api, log);
         foreach (var candidate in resolution.Order)
         {
             if (candidate.Manifest.Trust != ModTrust.Script) continue;
@@ -91,30 +87,60 @@ public sealed class LuaModHost
 
         try
         {
-            var script = new LuaMod(candidate, data, contracts, write, source);
+            var script = new LuaMod(candidate, data, api, write, source);
             scripts.Add(script);
-            write($"mods: loaded '{candidate.Id}' ({script.CallbackCount} event handler(s), {contracts.Definitions.Count(definition => definition.Source == candidate.Id)} contract(s))");
+            write($"mods: loaded '{candidate.Id}' ({script.CallbackCount} event handler(s))");
         }
         catch (Exception e)
         {
-            contracts.RemoveSource(candidate.Id);
+            api.RemoveBounties(candidate.Id);
             write($"mods: '{candidate.Id}' script failed: {e.Message}");
         }
     }
 
-    /// <summary>Adds the one event system shared by all scripts; it runs after the standard systems (including the contract board).</summary>
-    public void AddSystems(StandardSystemSet systems)
-    {
-        ArgumentNullException.ThrowIfNull(systems);
-        if (scripts.Count > 0) systems.AddSystem(new LuaWorldSystem(this));
-    }
-
-    internal IReadOnlyList<LuaMod> Scripts => scripts;
-    internal Action<string> Write => write;
-
-    internal void FireAll(string eventName, Action<MoonSharp.Interpreter.Table> fill)
+    internal void FireAll(string eventName, Action<Table> fill)
     {
         foreach (var script in scripts.ToArray())
             if (script.Active) script.Fire(eventName, fill);
+    }
+
+    static void FillWorld(Table table, WorldStarted world)
+    {
+        table["tick"] = world.Tick;
+        table["seed"] = world.Seed.ToString("x16");
+        table["money"] = world.Money;
+        table["game_hours"] = world.GameHours;
+    }
+
+    static void FillWorld(Table table, WorldTick world)
+    {
+        table["tick"] = world.Tick;
+        table["seed"] = world.Seed.ToString("x16");
+        table["money"] = world.Money;
+        table["game_hours"] = world.GameHours;
+    }
+
+    static void FillBounty(Table table, BountyAccepted contract)
+    {
+        table["id"] = contract.Id;
+        table["title"] = contract.Title;
+        table["target"] = contract.Target;
+        table["kind"] = contract.Kind;
+        table["objective"] = contract.Objective;
+        table["required"] = contract.Required;
+        table["reward"] = contract.Reward;
+        table["progress"] = contract.Progress;
+    }
+
+    static void FillBounty(Table table, BountyCompleted contract)
+    {
+        table["id"] = contract.Id;
+        table["title"] = contract.Title;
+        table["target"] = contract.Target;
+        table["kind"] = contract.Kind;
+        table["objective"] = contract.Objective;
+        table["required"] = contract.Required;
+        table["reward"] = contract.Reward;
+        table["progress"] = contract.Required;
     }
 }

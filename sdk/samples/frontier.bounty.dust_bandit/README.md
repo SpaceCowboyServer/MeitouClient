@@ -1,7 +1,8 @@
 # frontier.bounty.dust_bandit
 
 Sample Lua content for the frontier bounty board. It depends on [frontier.bounties](../frontier.bounties), registers a faction contract for
-`Dust Bandits`, and logs accepted/completed events. It has no custom assets, so it works against base-game data.
+`Dust Bandits`, declares the `events:bounty` and `contracts:write` permissions, and logs accepted/completed events. It has no custom assets,
+so it works against base-game data.
 
 ```bash
 dotnet run --project tools/Meitou.Tools -- mod validate sdk/samples/frontier.bounty.dust_bandit

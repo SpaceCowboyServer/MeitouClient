@@ -1,34 +1,41 @@
 using Meitou.Modding.Api;
-using Meitou.Simulation;
-using Meitou.Simulation.Bounties;
 
 namespace Frontier.Bounties;
 
 /// <summary>
-/// The frontier bounty framework. It owns the one contract catalog the game hands to the bounty board and the Lua host; content packs
-/// publish offers either as C# definitions or through the Lua API. The sample keeps its own save state so a save sidecar is exercised too.
+/// The frontier bounty framework. It registers a contract through the stable bounty API and subscribes to the shared accepted/completed events;
+/// it also keeps a small saveable heartbeat so loading it exercises the sidecar path.
 /// </summary>
 public sealed class Plugin : IMod
 {
     public void Initialize(IModContext context)
     {
-        var catalog = new BountyContractCatalog();
-        context.Services.Provide(ModServiceKeys.BountyContracts, catalog);
+        var id = context.Bounties.Register(new BountyDefinition(
+            LocalId: "dust-bandit-patrol",
+            Target: BountyTarget.Faction,
+            Goal: BountyGoal.Kill,
+            Title: "Dust Bandit Patrol",
+            Detail: "Kill one Dust Bandit for the frontier board.",
+            FactionId: "200-gamedata.base",   // FACTION "Dust Bandits"
+            Required: 1,
+            Reward: 1500));
 
         var heartbeat = new Heartbeat(context.Log);
-        context.AddSystem(() => heartbeat);
+        context.Events.Subscribe<WorldTick>(heartbeat.Tick);
+        context.Events.Subscribe<BountyAccepted>(bounty => context.Log.Info($"accepted {bounty.Title} ({bounty.Id})"));
+        context.Events.Subscribe<BountyCompleted>(bounty => context.Log.Info($"completed {bounty.Title} for {bounty.Reward} cats"));
         context.AddSaveable(heartbeat);
-        context.Log.Info("contract catalog ready; C# and Lua content share it");
+        context.Log.Info($"registered {id}");
     }
 }
 
-sealed class Heartbeat(IModLog log) : ITickSystem, ISaveable
+sealed class Heartbeat(IModLog log) : ISaveable
 {
     long ticks;
 
     public string Key => "ticks";
 
-    public void SlowWorld(World world)
+    public void Tick(WorldTick world)
     {
         ticks = world.Tick;
         if (ticks != 0 && ticks % 1_000_000 == 0) log.Info($"heartbeat at tick {ticks}");

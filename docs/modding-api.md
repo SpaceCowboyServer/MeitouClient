@@ -1,10 +1,8 @@
 # Generic mod API
 
-**Status: proposed (2026-10-27), not implemented.** The bounty samples prove one shared contract catalog and a working
-Faction-tab board. They do not yet expose a stable cross-language API: C# gets `GameDatabase`/`World`, Lua gets a small
-whitelisted API, and only Lua receives bounty events.
-
-This plan turns the bounty prototype into a reusable contract. One semantic API is exposed through two adapters:
+**Status: implemented (2026-10-27).** C# plugins and Lua scripts share one event bus and one bounty registry in
+`Meitou.Modding.Runtime`. The bounty samples use this contract; the legacy `BountyContractCatalog` service key remains only for
+source compatibility and is not read by the game.
 
 ```text
 C# plugin ──┐
@@ -16,16 +14,20 @@ Lua script ─┘
 
 - Public signatures use API DTOs and primitive values, never `World`, `GameDatabase`, `FcsRecord` or a simulation system.
 - C# and Lua share event names, payload fields and registration rules; they do not share CLR types.
-- Stable APIs are opt-in. The existing `Data`/`AddSystem`/`Enqueue` surface remains a trusted-plugin escape hatch for API 1,
-  but samples and docs stop using it as the normal path.
-- Game-side adapters own the translation. `Meitou.Simulation` does not reference `Meitou.Modding.Api`.
-- Events are read-only notifications on the simulation thread; mutations go through queued commands.
-- One throwing handler disables or reports only that handler; it never stops the board, the world or other mods.
-- Every domain gets its own capability version, so adding factions/dialogue later does not force every mod to bump.
+- The stable APIs are opt-in. `Data`, `AddSystem`, `AddSaveable` and `Enqueue` remain trusted-plugin escape hatches.
+- `Meitou.Simulation` does not reference `Meitou.Modding.Api`; `Meitou.Modding.Runtime` owns the translation.
+- Events are read-only notifications on the simulation thread. A throwing handler is logged and does not stop the other handlers,
+  the board or the world.
 
-## Public contracts
+## C# contract
 
-Start with the contracts the two samples actually need.
+`IModContext` (in `Meitou.Modding.Api`) exposes:
+
+```csharp
+IModEvents Events { get; }
+IBountyContracts Bounties { get; }
+IBountyBoard Board { get; }
+```
 
 ```csharp
 public interface IModEvents
@@ -33,8 +35,8 @@ public interface IModEvents
     IDisposable Subscribe<TEvent>(Action<TEvent> handler);
 }
 
-public sealed record WorldStarted(ulong Seed, long Tick);
-public sealed record WorldTick(long Tick, int Money, double GameHours);
+public sealed record WorldStarted(ulong Seed, long Tick, long Money, double GameHours);
+public sealed record WorldTick(ulong Seed, long Tick, long Money, double GameHours);
 
 public sealed record BountyAccepted(
     string Id, string Title, string Target, string Kind, string Objective,
@@ -52,11 +54,11 @@ public sealed record BountyDefinition(
     BountyTarget Target,
     BountyGoal Goal,
     string Title,
-    string Detail,
-    string TargetRecord,
-    string FactionId,
-    int Required,
-    int Reward);
+    string Detail = "",
+    string TargetRecord = "",
+    string FactionId = "",
+    int Required = 1,
+    int Reward = 0);
 
 public sealed record BountyOffer(
     string Id, string Title, string Detail, int Required, int Reward, float Distance);
@@ -66,7 +68,6 @@ public sealed record BountyContractView(
 
 public interface IBountyContracts
 {
-    /// <summary>Registers a local ID; the adapter returns the canonical mod-qualified ID.</summary>
     string Register(BountyDefinition definition);
 }
 
@@ -77,128 +78,70 @@ public interface IBountyBoard
 }
 ```
 
-`IModContext` gains:
-
-```csharp
-IModEvents Events { get; }
-IBountyContracts Bounties { get; }
-IBountyBoard Board { get; }
-```
-
-The framework plugin is then a normal API consumer, not the owner of the game's board.
+- `LocalId` uses 1-64 letters, digits, `_`, `-` or `.`; registration returns `<mod id>:bounty/<local id>`.
+- `FactionId` and `TargetRecord` are FCS string IDs. `Required` defaults to 1 and `Reward` to 0.
+- Event `Target` is the display name; `Kind` is `faction`, `animal`, `spawned` or `character`; `Objective` is `kill` or `capture`.
+- `Capture` is accepted only for `Spawned` contracts; built-in downed named targets already use the capture path.
+- `Board` is a snapshot of the current published board. The lists are empty before the first board publish.
+- Handler registration order is invocation order. A subscription is removed with `Dispose`.
 
 ## Lua mapping
 
-Lua sees the same contract through the existing names, backed by the API adapters:
+| Lua | C# event | Payload |
+|---|---|---|
+| `world.start` | `WorldStarted` | `tick`, `seed` (hex), `money`, `game_hours` |
+| `world.tick` | `WorldTick` | `tick`, `seed` (hex), `money`, `game_hours` |
+| `bounty.accepted` | `BountyAccepted` | `id`, `title`, `target`, `kind`, `objective`, `required`, `reward`, `progress` |
+| `bounty.completed` | `BountyCompleted` | same fields; `progress` equals `required` |
 
-```lua
-meitou.contracts.register { id = "dust-bandit", kind = "faction", ... }
+`meitou.contracts.register` maps onto `IBountyContracts.Register`; `meitou.events.on` subscribes to the shared bus. A Lua
+handler that throws disables only that script and removes its contract definitions. Contracts restored from a save at the first
+tick are recorded without replaying `bounty.accepted`; later accepts and completions fire normally.
 
-meitou.events.on("bounty.accepted", function(b) ... end)
-meitou.events.on("bounty.completed", function(b) ... end)
-meitou.events.on("world.start", function(w) ... end)
-meitou.events.on("world.tick", function(w) ... end)
-```
+## Runtime and lifecycle
 
-- Lua local IDs are prefixed by the adapter exactly as now.
-- Event tables mirror the C# record fields (`id`, `title`, `target`, `kind`, `objective`, `required`, `reward`, `progress`).
-- Unknown event names, unpermitted events and non-function handlers are rejected at registration.
-- The Lua host no longer polls board state for bounty events; it subscribes to `IModEvents`.
+- `GameHost` creates one `ModApiRuntime` before loading the C# and Lua hosts. It owns one `ModEventBus` and one
+  `BountyContractCatalog`.
+- `ModPluginHost` gives each plugin a scoped `IBountyContracts`; `LuaModHost` gives each script the same scoped view. A failed
+  initialization removes that mod's definitions.
+- `ModRuntimeSystem` is appended after the standard systems and publishes `WorldStarted` once, then board changes and
+  `WorldTick` on every simulation tick. It records the board's first state without synthetic accepted events.
+- The game's `BountySettings.Contracts` is the same catalog, so plugin, script and built-in offers share one board.
+- There is no hot reload or unload. Event subscriptions live for the game session.
 
-## Runtime
+## Permissions
 
-Add a JIT-only `src/Meitou.Modding.Runtime` project referencing `Meitou.Modding.Api` and `Meitou.Simulation`.
-
-- `ModEventBus` implements `IModEvents`; handlers run in registration order, isolated, on the simulation thread.
-- `ModRuntimeSystem : ITickSystem` is appended after the standard systems. It publishes `WorldStarted` once per world and
-  `WorldTick` each tick.
-- `BountyEventAdapter` maps board offers/active contracts to API DTOs and diffs board state into `BountyAccepted` /
-  `BountyCompleted`. It is the only place that knows both the simulation catalog and the API DTOs.
-- `GameHost` creates one bus and one runtime system after the standard systems, then gives the bus to the plugin host and the
-  Lua bridge. `Meitou.Modding.Plugins` and `Meitou.Modding.Scripting` depend only on `Meitou.Modding.Api` for these types.
-
-The first implementation should keep the current `BountyContractCatalog` internally and adapt it; replacing the simulation
-board is not part of this step.
-
-## Manifest and permissions
-
-Add an optional `permissions` array:
+Script manifests may declare an optional permission list:
 
 ```json
 "permissions": ["events:world", "events:bounty", "contracts:write"]
 ```
 
-- Known permissions are validated; unknown ones are errors.
-- C# plugins are trusted, but still use the same event names and payloads.
-- Lua checks permissions before subscription/registration.
-- For compatibility, existing bounty/world events and `contracts:write` remain allowed when `permissions` is absent in API 1.
-  New domains require explicit permissions. API 2 can make all permissions explicit.
+| Permission | Allows |
+|---|---|
+| `events:world` | `world.start`, `world.tick` |
+| `events:bounty` | `bounty.accepted`, `bounty.completed` |
+| `contracts:write` | `meitou.contracts.register` |
 
-Keep `apiVersion: 1` while the change is additive. Add capability versions for each domain:
+- Unknown or duplicate permissions are manifest errors.
+- If `permissions` is absent or empty, API 1 keeps the legacy permissive behavior for these three capabilities.
+- If present and non-empty, only the listed capabilities are available; a denied call fails during script initialization and the
+  script is disabled. C# plugins are trusted and are not gated by this list.
 
-```text
-frontier.contracts@1
-frontier.bounty.events@1
-frontier.world.events@1
-```
+The build remains `apiVersion: 1`. Domain capability names are `frontier.contracts@1`, `frontier.bounty.events@1` and
+`frontier.world.events@1`; a mod that provides a capability to other mods advertises it in `provides`.
 
-## Implementation order
+## Migration
 
-### 8A — Contracts and bus
+- `ModServiceKeys.BountyContracts` remains only as a legacy key. The game does not read a plugin-provided catalog; use
+  `context.Bounties`.
+- Lua no longer polls the board from a per-world system; event delivery is through `IModEvents`.
+- Existing accepted/completed contract saves keep their CAMERA state; the first tick suppresses accepted replays.
+- The samples are [frontier.bounties](../sdk/samples/frontier.bounties) and
+  [frontier.bounty.dust_bandit](../sdk/samples/frontier.bounty.dust_bandit).
 
-1. Add API DTOs, `IModEvents`, `IBountyContracts`, `IBountyBoard`.
-2. Add `Meitou.Modding.Runtime` with `ModEventBus`.
-3. Add `ModRuntimeSystem` for world start/tick.
-4. Wire `IModContext.Events` and the plugin host.
-5. Tests: subscribe, ordering, unsubscribe, throwing handler isolation.
+## Not implemented
 
-### 8B — Bounty adapter
-
-1. Add `BountyEventAdapter` and `GameHost` wiring.
-2. Expose `IModContext.Bounties`/`Board`.
-3. Migrate `sdk/samples/frontier.bounties` to use the stable contracts and a `BountyCompleted` subscription.
-4. Tests: C# registers a contract, it appears on the board, and the C# handler receives accepted/completed.
-
-### 8C — Lua bridge
-
-1. Give `LuaModHost` the shared `IModEvents` and `IBountyContracts`.
-2. Back `meitou.events.on` and `meitou.contracts.register` with the API.
-3. Remove Lua board polling from `LuaWorldSystem`.
-4. Tests: Lua and C# register into one board and both receive the same accepted/completed events.
-
-### 8D — Permissions and compatibility
-
-1. Add `permissions` parsing/validation and Lua checks.
-2. Document legacy defaults.
-3. Add API compatibility tests for the samples.
-
-### 8E — Next domains
-
-Repeat the pattern one domain at a time: dialogue, factions/relations, commands/queries, save state, then assets/UI.
-Do not add a god interface or expose arbitrary systems.
-
-## Migration rules
-
-- Existing C# `Data`, `AddSystem`, `AddSaveable` and `Enqueue` remain for API 1 but are not part of the stable contract.
-- Existing Lua scripts keep working through the compatibility adapter.
-- Current accepted/completed contract save state remains in CAMERA; no migration format is needed.
-- The sample framework plugin no longer owns the catalog once `GameHost` supplies `IBountyContracts`.
-- `frontier.revolver` remains blocked on assets and is not part of this API work.
-
-## Acceptance
-
-- The C# framework sample and the Lua Dust Bandit sample register through the same API and produce one set of offers.
-- Both receive `bounty.accepted` and `bounty.completed` with equal payload values.
-- A throwing C# handler does not affect Lua or the board; a throwing Lua handler disables only that script.
-- No sample uses `World`, `GameDatabase` or `BountyBoardSystem` directly.
-- `world.start` fires once per world; `world.tick` fires each simulation tick after the board.
-- Build clean; quick suite passes; AOT launcher publish still succeeds.
-- Documentation covers C#/Lua payloads, permissions, capability versions and the escape-hatch policy.
-
-## Not in the first slice
-
-- UI or rendering hooks, custom panels, assets/audio access.
-- Scheduler and arbitrary commands.
-- Dialogue, factions, economy or other domain contracts.
-- Hot reload/unload, Workshop publishing, remote repositories.
-- Removing the trusted C# escape hatch; that is an API 2 decision.
+- Commands, scheduler, dialogue, factions, economy, save-state and asset APIs.
+- UI/rendering hooks, hot reload, Workshop publishing and remote repositories.
+- Removing the trusted C# escape hatch (an API 2 decision).

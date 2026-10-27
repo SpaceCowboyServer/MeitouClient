@@ -2,6 +2,7 @@ using Meitou.Data;
 using Meitou.Modding;
 using Meitou.Modding.Api;
 using Meitou.Modding.Plugins;
+using Meitou.Modding.Runtime;
 using Meitou.Simulation;
 
 namespace Meitou.Tests.Modding;
@@ -30,10 +31,17 @@ public class ModPluginHostTests
         return ModFixtures.CandidateAt(folder, directory, manifest);
     }
 
-    static (ModPluginHost Host, List<string> Log) Load(params ModCandidate[] candidates)
+    static (ModPluginHost Host, ModApiRuntime Api, List<string> Log) LoadWithApi(params ModCandidate[] candidates)
     {
         var log = new List<string>();
-        var host = ModPluginHost.Load(new ModResolution(candidates, [], ModApi.CurrentVersion, null), new GameDatabase(), log.Add);
+        var api = new ModApiRuntime(log.Add);
+        var host = ModPluginHost.Load(new ModResolution(candidates, [], ModApi.CurrentVersion, null), new GameDatabase(), api, log.Add);
+        return (host, api, log);
+    }
+
+    static (ModPluginHost Host, List<string> Log) Load(params ModCandidate[] candidates)
+    {
+        var (host, _, log) = LoadWithApi(candidates);
         return (host, log);
     }
 
@@ -111,6 +119,19 @@ public class ModPluginHostTests
         Assert.Equal(0, host.PluginCount);
         Assert.False(host.Services.TryGet("rolled-back", out _));
         Assert.Contains(log, line => line.Contains("fails after a service", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_contract_from_a_failed_initialization_is_rolled_back()
+    {
+        using var root = new ModTempFolder();
+        var candidate = Plugin(root, "FailingBounty", "frontier.failing.bounty", "Meitou.Tests.Modding.FailingAfterBountyMod");
+
+        var (host, api, log) = LoadWithApi(candidate);
+
+        Assert.Equal(0, host.PluginCount);
+        Assert.Empty(api.Contracts.Definitions);
+        Assert.Contains(log, line => line.Contains("fails after a bounty", StringComparison.Ordinal));
     }
 
     [Fact]

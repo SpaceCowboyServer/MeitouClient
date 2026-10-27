@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "apiVersion": 1,
   "depends": { "frontier.bounties": ">=1.0 <2" },
+  "permissions": ["events:bounty", "contracts:write"],
   "trust": "script",
   "entry": "scripts/main.lua"
 }

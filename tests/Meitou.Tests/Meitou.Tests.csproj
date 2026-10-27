@@ -25,6 +25,7 @@
     <ProjectReference Include="../../src/Meitou.Modding/Meitou.Modding.csproj" />
     <ProjectReference Include="../../src/Meitou.Modding.Api/Meitou.Modding.Api.csproj" />
     <ProjectReference Include="../../src/Meitou.Modding.Plugins/Meitou.Modding.Plugins.csproj" />
+    <ProjectReference Include="../../src/Meitou.Modding.Runtime/Meitou.Modding.Runtime.csproj" />
     <ProjectReference Include="../../src/Meitou.Modding.Scripting/Meitou.Modding.Scripting.csproj" />
     <ProjectReference Include="..\..\src\Meitou.Rendering\Meitou.Rendering.csproj" />
     <ProjectReference Include="..\..\src\Meitou.Simulation\Meitou.Simulation.csproj" />

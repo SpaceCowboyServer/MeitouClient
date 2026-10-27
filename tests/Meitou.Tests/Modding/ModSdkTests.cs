@@ -3,9 +3,9 @@ using Meitou.Data;
 using Meitou.Modding;
 using Meitou.Modding.Api;
 using Meitou.Modding.Plugins;
+using Meitou.Modding.Runtime;
 using Meitou.Modding.Scripting;
 using Meitou.Sdk;
-using Meitou.Simulation.Bounties;
 using Meitou.Tests.Simulation;
 
 namespace Meitou.Tests.Modding;
@@ -100,7 +100,7 @@ public class ModSdkTests
     }
 
     [Fact]
-    public void The_frontier_bounties_sample_provides_the_catalog_service()
+    public void The_frontier_bounties_sample_registers_through_the_shared_api()
     {
         string root = RepoRoot();
         string folder = System.IO.Path.Combine(root, "sdk", "samples", "frontier.bounties");
@@ -111,16 +111,18 @@ public class ModSdkTests
         var manifest = Assert.IsType<ModManifest>(read.Manifest);
         var candidate = new ModCandidate("frontier.bounties", folder, manifest, read.ManifestSha256 ?? "");
         var log = new List<string>();
-        var host = ModPluginHost.Load(new ModResolution([candidate], [], ModApi.CurrentVersion, null), new GameDatabase(), log.Add);
+        var api = new ModApiRuntime(log.Add);
+        var host = ModPluginHost.Load(new ModResolution([candidate], [], ModApi.CurrentVersion, null), new GameDatabase(), api, log.Add);
 
         Assert.Equal(1, host.PluginCount);
-        Assert.True(host.Services.TryGet(ModServiceKeys.BountyContracts, out var service));
-        Assert.IsType<BountyContractCatalog>(service);
-        Assert.Contains(log, line => line.Contains("contract catalog ready", StringComparison.Ordinal));
+        var definition = Assert.Single(api.Contracts.Definitions);
+        Assert.Equal("frontier.bounties:bounty/dust-bandit-patrol", definition.Id);
+        Assert.Equal("200-gamedata.base", definition.FactionId);
+        Assert.Contains(log, line => line.Contains("registered frontier.bounties:bounty/dust-bandit-patrol", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void A_plugin_catalog_and_lua_register_into_one_catalog()
+    public void A_plugin_and_lua_register_into_one_shared_api()
     {
         using var root = new ModTempFolder();
         string folder = System.IO.Path.Combine(root.Path, "Provider");
@@ -140,16 +142,16 @@ public class ModSdkTests
         var script = ModFixtures.CandidateAt("Script", scriptFolder, ModFixtures.Script("frontier.script"));
 
         var log = new List<string>();
+        var api = new ModApiRuntime(log.Add);
         var resolution = new ModResolution([plugin, script], [], ModApi.CurrentVersion, null);
-        var host = ModPluginHost.Load(resolution, new GameDatabase(), log.Add);
-        Assert.True(host.Services.TryGet(ModServiceKeys.BountyContracts, out var service));
-        var catalog = Assert.IsType<BountyContractCatalog>(service);
-        Assert.Single(catalog.Definitions);
+        var host = ModPluginHost.Load(resolution, new GameDatabase(), api, log.Add);
+        Assert.True(host.Services.TryGet("contract-id", out var id));
+        Assert.Equal("frontier.provider:bounty/plugin", id);
+        Assert.Single(api.Contracts.Definitions);
 
-        var lua = LuaModHost.Load(resolution, SyntheticTown.Database(), catalog, log.Add);
-        Assert.Equal(2, catalog.Definitions.Count);
-        Assert.Same(catalog, lua.Contracts);
-        Assert.Contains(catalog.Definitions, definition => definition.Id == "frontier.script:bounty/lua");
+        _ = LuaModHost.Load(resolution, SyntheticTown.Database(), api, log.Add);
+        Assert.Equal(2, api.Contracts.Definitions.Count);
+        Assert.Contains(api.Contracts.Definitions, definition => definition.Id == "frontier.script:bounty/lua");
     }
 
     static string RepoRoot()

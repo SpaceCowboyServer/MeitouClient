@@ -21,6 +21,7 @@ public class ModManifestTests
               "provides": ["frontier.contracts@1"],
               "loadAfter": ["frontier.bounties"],
               "conflicts": ["frontier.old"],
+              "permissions": ["events:bounty", "contracts:write"],
               "content": ["content/"],
               "assets": ["assets/"],
               "trust": "script",
@@ -40,6 +41,7 @@ public class ModManifestTests
         Assert.Equal(["frontier.contracts@1"], manifest.Provides);
         Assert.Equal(["frontier.bounties"], manifest.LoadAfter);
         Assert.Equal(["frontier.old"], manifest.Conflicts);
+        Assert.Equal(["events:bounty", "contracts:write"], manifest.Permissions);
         Assert.Equal(["content/"], manifest.Content);
         Assert.Equal(["assets/"], manifest.Assets);
         Assert.Equal(ModTrust.Script, manifest.Trust);
@@ -118,6 +120,11 @@ public class ModManifestTests
         var traversal = ModManifest.Read(folder.Write("traversal.json",
             ModFixtures.ManifestJson("frontier.test", extra: ", \"content\": [\"../secret\"]")));
         Assert.False(traversal.Success);
+
+        var permissions = ModManifest.Read(folder.Write("permissions.json",
+            ModFixtures.ManifestJson("frontier.test", extra: ", \"permissions\": [\"events:everything\"]")));
+        Assert.False(permissions.Success);
+        Assert.Contains("events:everything", permissions.Error, StringComparison.Ordinal);
     }
 
     [Fact]

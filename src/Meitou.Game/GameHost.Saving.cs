@@ -4,6 +4,7 @@ using System.Numerics;
 using Meitou.Data;
 using Meitou.Data.Save;
 using Meitou.Data.World;
+using Meitou.Modding.Runtime;
 using Meitou.Simulation;
 using Meitou.Simulation.Saving;
 
@@ -115,7 +116,7 @@ sealed partial class GameHost
             RagdollEnvironment = ragdollGeometry,
         });
         modHost?.AddSystems(built);
-        scriptHost?.AddSystems(built);
+        if (modApi is not null) built.AddSystem(new ModRuntimeSystem(modApi, built.Bounties));
         return built;
     }
 
