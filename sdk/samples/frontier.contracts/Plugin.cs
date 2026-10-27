@@ -50,6 +50,10 @@ public sealed class Plugin : IMod, IContractFramework
             throw new ArgumentException("A contract template needs a giver role.", nameof(template));
         if (template.TownId is null || template.TownName is null)
             throw new ArgumentException("A contract template's town filters cannot be null.", nameof(template));
+        if (template.Weight < 1)
+            throw new ArgumentException("A contract template's weight must be at least 1.", nameof(template));
+        if (template.CooldownDays < 0)
+            throw new ArgumentException("A contract template's cooldown cannot be negative.", nameof(template));
         lock (gate)
         {
             if (!byId.TryAdd(definition.LocalId, template))
@@ -76,7 +80,7 @@ public sealed class Plugin : IMod, IContractFramework
 sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
 {
     public const int Slots = 3;
-    const int Version = 1;
+    const int Version = 2;
 
     readonly Dictionary<string, GiverState> givers = new(StringComparer.Ordinal);
     int nextSerial;
@@ -158,6 +162,10 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
             string id = ContractId(item.LocalId);
             if (context.Board.ActiveFor(giver).Any(contract => contract.Id == id)) continue;
             if (context.Board.OffersFor(giver).Any(offer => offer.Id == id)) continue;
+            // A turned-in template waits out its cooldown before it can enter a later slate.
+            if (context.Board.CompletedFor(giver).Any(contract => contract.Id == id) &&
+                owner.TemplateById(item.TemplateId) is { CooldownDays: > 0 } template)
+                state.Cooldowns[item.TemplateId] = Math.Max(state.Cooldowns.GetValueOrDefault(item.TemplateId), day + template.CooldownDays);
             // Finished, abandoned or absent: replace this slot with a new contract for the next day.
             context.Bounties.Remove(id);
             state.Slots[slot] = null;
@@ -167,10 +175,12 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
 
     void FillFreeSlots(string giver, GiverState state, IReadOnlyList<ContractTemplate> available)
     {
-        if (available.Count == 0) return;
+        var eligible = available.Where(template =>
+            !state.Cooldowns.TryGetValue(template.Definition.LocalId, out int until) || until <= state.Day).ToArray();
+        if (eligible.Length == 0) return;
         var used = new HashSet<string>(state.Slots.Where(slot => slot is not null).Select(slot => slot!.TemplateId), StringComparer.Ordinal);
-        var ordered = available
-            .OrderBy(template => Hash($"{giver}:{state.Day}:{template.Definition.LocalId}"))
+        var ordered = eligible
+            .OrderByDescending(template => WeightedKey(giver, state.Day, template))
             .ToArray();
         for (int slot = 0; slot < Slots; slot++)
         {
@@ -186,6 +196,14 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
                 break;
             }
         }
+    }
+
+    /// <summary>Efraimidis-Spirakis weighted sampling without replacement, keyed deterministically by giver and day.</summary>
+    double WeightedKey(string giver, int day, ContractTemplate template)
+    {
+        ulong hash = Hash($"{giver}:{day}:{template.Definition.LocalId}");
+        double unit = (hash >> 11) * (1.0 / (1UL << 53));
+        return Math.Pow(unit, 1.0 / template.Weight);
     }
 
     bool TryRegister(string giver, string local, ContractTemplate template)
@@ -232,6 +250,12 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
                 writer.Write(state.Slots[slot]?.LocalId ?? "");
                 writer.Write(state.Slots[slot]?.TemplateId ?? "");
             }
+            writer.Write(state.Cooldowns.Count);
+            foreach (var (templateId, until) in state.Cooldowns.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            {
+                writer.Write(templateId);
+                writer.Write(until);
+            }
         }
     }
 
@@ -239,7 +263,7 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
     {
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
         int version = reader.ReadInt32();
-        if (version != Version) throw new InvalidDataException($"Unknown contract framework version {version}.");
+        if (version is not (1 or 2)) throw new InvalidDataException($"Unknown contract framework version {version}.");
         nextSerial = reader.ReadInt32();
         int count = reader.ReadInt32();
         if (count is < 0 or > 10_000) throw new InvalidDataException("Invalid contract giver count.");
@@ -266,6 +290,17 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
                 }
                 if (TryRegister(giver, local, template)) state.Slots[slot] = new SlotState(local, templateId);
             }
+            if (version >= 2)
+            {
+                int cooldownCount = reader.ReadInt32();
+                if (cooldownCount is < 0 or > 10_000) throw new InvalidDataException("Invalid contract cooldown count.");
+                for (int c = 0; c < cooldownCount; c++)
+                {
+                    string templateId = reader.ReadString();
+                    int until = reader.ReadInt32();
+                    if (templateId.Length > 0 && owner.TemplateById(templateId) is not null) state.Cooldowns[templateId] = until;
+                }
+            }
             givers[giver] = state;
         }
     }
@@ -276,6 +311,7 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
         public string TownName { get; set; } = "";
         public int Day { get; set; }
         public required SlotState?[] Slots { get; init; }
+        public Dictionary<string, int> Cooldowns { get; init; } = new(StringComparer.Ordinal);
     }
 
     sealed record SlotState(string LocalId, string TemplateId);

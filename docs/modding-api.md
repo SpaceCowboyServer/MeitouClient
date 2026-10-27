@@ -80,7 +80,9 @@ public sealed record ContractTemplate(
     BountyDefinition Definition,
     string GiverRole = "bartender",
     string TownId = "",
-    string TownName = "");
+    string TownName = "",
+    int Weight = 1,
+    int CooldownDays = 0);
 
 public interface IContractFramework
 {
@@ -156,7 +158,8 @@ public interface IDialogue
 - `ContractTemplate` and `IContractFramework` are the cross-mod framework contract. The foundation plugin
   [frontier.contracts](../sdk/samples/frontier.contracts) provides `ModServiceKeys.Contracts`; content packs depend on the
   `frontier.contracts` capability and register templates with `context.Services.Get<IContractFramework>(...)`.
-  Template IDs are globally unique; `GiverRole` defaults to `bartender`, and a town filter is optional.
+  Template IDs are globally unique; `GiverRole` defaults to `bartender`, and a town filter is optional. `Weight` (at least 1) biases
+  the deterministic slot selection; `CooldownDays` keeps a turned-in template out of that giver's slate for the given number of days.
 - Event `Target` is the display name; `Kind` is `faction`, `animal`, `spawned` or `character`; `Objective` is `kill` or `capture`.
 - `Capture` is accepted only for `Spawned` contracts; built-in downed named targets already use the capture path.
 - A giver contract with progress at its required count becomes `Ready`; its reward is paid by `TurnIn`, not on the killing blow.

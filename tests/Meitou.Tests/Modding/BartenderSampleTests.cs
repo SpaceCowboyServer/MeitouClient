@@ -97,6 +97,58 @@ public class BartenderSampleTests
         Assert.Equal(3, restoredApi.Contracts.Definitions.Count);
     }
 
+    [Fact]
+    public void A_framework_template_waits_out_its_turn_in_cooldown()
+    {
+        string root = RepoRoot();
+        var framework = SampleCandidate(root, "frontier.contracts", "FrontierContracts.dll");
+        Assert.SkipWhen(framework is null, "The framework plugin has not been built.");
+
+        var api = new ModApiRuntime();
+        var plugins = ModPluginHost.Load(new ModResolution([framework!], [], ModApi.CurrentVersion, null), new GameDatabase(), api);
+        var service = Assert.IsAssignableFrom<IContractFramework>(plugins.Services.Get<IContractFramework>(ModServiceKeys.Contracts));
+        service.RegisterTemplate(new ContractTemplate(new BountyDefinition(
+            LocalId: "test.cooldown",
+            Target: BountyTarget.Faction,
+            Goal: BountyGoal.Kill,
+            Title: "Cooldown job",
+            FactionId: "200-gamedata.base",
+            Required: 1,
+            Reward: 10), CooldownDays: 1));
+
+        var factions = new List<FactionData>
+        {
+            new() { Id = "player", Name = "Player" },
+            new() { Id = "200-gamedata.base", Name = "Dust Bandits", FundamentalType = FundamentalType.Bandit },
+        };
+        var relations = FactionRelations.Build(factions);
+        relations.PlayerFaction = 0;
+        var data = new PopulationData { Db = SyntheticTown.Database(), Sites = [], Factions = factions, PlayerFaction = 0, Relations = relations };
+        var board = new BountyBoardSystem(data, new BountySettings
+        {
+            Contracts = api.Contracts, OfferRefreshTicks = 1, ViewRefreshTicks = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        using var world = new SimWorld(new WorldSettings { Seed = 1, Threads = 1, PublishSnapshots = false },
+            new OpenGroundWalkability((_, _) => 0));
+        api.AttachBoard(board);
+        api.AttachWorld(world);
+        var situation = new DialogueSituation(CharacterId.None, CharacterId.None, "Barman", "barman-record", "hub", "The Hub", 1,
+            IsTrader: true, IsBartender: true, AtRoot: true);
+        Assert.True(api.Dialogue.Select(world, situation, "frontier.contracts:ask"));
+        var giver = situation.GiverId;
+        Assert.Single(api.Board.OffersFor(giver));
+        Assert.True(api.Dialogue.Select(world, situation, "frontier.contracts:slot-0"));
+        var contract = Assert.Single(board.Contracts);
+        contract.State = BountyState.ReadyToTurnIn;
+        Assert.True(api.Board.TurnIn(contract.Id));
+
+        api.EventBus.Publish(new WorldDayChanged(2, 1, 48));
+        Assert.Empty(api.Board.OffersFor(giver));
+        api.EventBus.Publish(new WorldDayChanged(3, 2, 72));
+        Assert.Single(api.Board.OffersFor(giver));
+    }
+
     static ModCandidate? SampleCandidate(string root, string folderName, string assemblyName)
     {
         string folder = Path.Combine(root, "sdk", "samples", folderName);

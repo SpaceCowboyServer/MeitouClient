@@ -72,8 +72,9 @@ public interface IModContext
   key is an error. Typed services work when both mods reference the same contract assembly loaded in the default context. Cross-mod
   private contract assemblies are not unified yet.
 - **Contract framework:** a content pack can depend on `frontier.contracts` and call
-  `context.Services.Get<IContractFramework>(ModServiceKeys.Contracts)` to register `ContractTemplate`s. The framework interface and
-  DTOs live in `Meitou.Modding.Api`, so the service keeps type identity across plugin load contexts.
+  `context.Services.Get<IContractFramework>(ModServiceKeys.Contracts)` to register `ContractTemplate`s. `Weight` biases the
+  deterministic daily slate; `CooldownDays` holds a turned-in template out of that giver's slate. The framework interface and DTOs live in
+  `Meitou.Modding.Api`, so the service keeps type identity across plugin load contexts.
 - **Shared bounty registry:** `GameHost` creates one catalog and gives the same scoped API to C# and Lua, so both tiers share one offer
   set. The [frontier.contracts foundation](../sdk/samples/frontier.contracts) implements the reusable bartender framework
   (`IContractFramework` and `frontier.contracts@1`); the [frontier.bounties content pack](../sdk/samples/frontier.bounties) depends on

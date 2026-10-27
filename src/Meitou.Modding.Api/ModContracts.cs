@@ -143,7 +143,9 @@ public sealed record ContractTemplate(
     BountyDefinition Definition,
     string GiverRole = "bartender",
     string TownId = "",
-    string TownName = "");
+    string TownName = "",
+    int Weight = 1,
+    int CooldownDays = 0);
 
 /// <summary>Implemented by a reusable contract-giver framework; content mods register templates through it.</summary>
 public interface IContractFramework
