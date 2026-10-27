@@ -219,6 +219,9 @@
                   <TextBlock DockPanel.Dock="Left" Classes="handle" Text="≡" VerticalAlignment="Center" Margin="0,0,10,0"
                              PointerPressed="DragHandle_PointerPressed" ToolTip.Tip="Drag to change the load order" />
                   <CheckBox DockPanel.Dock="Left" IsChecked="{Binding Enabled}" VerticalAlignment="Center" />
+                  <Button DockPanel.Dock="Right" Classes="link" Content="Delete" IsVisible="{Binding CanDelete}"
+                          VerticalAlignment="Center" Margin="8,0,0,0" Click="DeleteMod_Click"
+                          ToolTip.Tip="Delete this local mod folder (asks first)" />
                   <StackPanel VerticalAlignment="Center">
                     <TextBlock Classes="name" Text="{Binding Name}" />
                     <TextBlock Classes="desc" Text="{Binding Detail}" />

@@ -42,6 +42,9 @@ public sealed class ModRow(ModInfo mod, bool enabled) : INotifyPropertyChanged
 
     public bool HasNotes => Notes.Length > 0;
 
+    /// <summary>Only local mod folders can be deleted here; Workshop content belongs to Steam.</summary>
+    public bool CanDelete => Mod.Source == ModSource.Local;
+
     public bool Enabled
     {
         get;

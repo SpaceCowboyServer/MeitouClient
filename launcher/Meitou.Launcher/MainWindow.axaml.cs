@@ -562,6 +562,46 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    async void DeleteMod_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: ModRow row }) return;
+        if (install is null || row.Mod.Source != ModSource.Local) return;
+
+        string folder, mods;
+        try
+        {
+            folder = Path.TrimEndingDirectorySeparator(Path.GetFullPath(row.Mod.Folder));
+            mods = Path.TrimEndingDirectorySeparator(Path.GetFullPath(install.ModsDirectory));
+        }
+        catch (Exception error) when (error is IOException or ArgumentException)
+        {
+            Status($"Could not resolve the mod folder: {error.Message}");
+            return;
+        }
+        string relative = Path.GetRelativePath(mods, folder);
+        if (relative == "." || Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            Status("Refusing to delete a folder outside Kenshi's mods folder.");
+            return;
+        }
+        if (!await AskAsync("Delete mod?", $"Delete '{row.Name}' and its folder? This cannot be undone.\n\n{folder}", "Delete", "Cancel"))
+            return;
+
+        try
+        {
+            await Task.Run(() => Directory.Delete(folder, recursive: true));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Status($"Could not delete {row.Name}: {error.Message}");
+            return;
+        }
+
+        LoadMods();
+        if (!SaveMods()) return;
+        if (ValidateMods()) Status($"Deleted {row.Name}.");
+    }
+
     // Play resolves the enabled manifests before starting the game. Missing, disabled or version-mismatched dependencies and conflicts
     // stop the launch; legacy data-only mods have no manifest and keep the original game's load rules.
     bool ValidateMods()

@@ -7,6 +7,8 @@ Released with tags `launcher-v<version>` by `.github/workflows/launcher-release.
 - **Install mod...** on the Mods page: choose one or more `.meitoumod` packages, or drag-and-drop them onto the page. The launcher
   validates and extracts them into Kenshi's `mods` folder, refreshes the list, enables new mods and saves the list; replacing an
   installed mod asks first.
+- Local mod rows have **Delete**, with a confirmation. It removes the folder, refreshes the list and saves `mods.cfg`. Workshop mods
+  are left to Steam.
 
 ## v1.4.0
 

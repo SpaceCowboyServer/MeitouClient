@@ -225,6 +225,8 @@ start the `settings.cfg` value wins. The launcher's labels come from the same `.
   the same. The launcher validates and extracts them into `<Kenshi>/mods`, refreshes the list, enables new mods and saves `mods.cfg`.
   Installing over an existing folder asks before replacing it. Manifest dependency checks run immediately after install and again on Play,
   so a package with a disabled or missing dependency is reported before launch rather than installed silently.
+- Local mod rows have a **Delete** action. It asks first, then removes that folder from `<Kenshi>/mods`, refreshes the list, saves
+  `mods.cfg` and rechecks the remaining enabled mods. Workshop mods have no Delete action; Steam owns their folders.
 - The same packages can be installed from the CLI with `meitou-tools mod install`; a folder of `.meitoumod` files plus
   `meitou-repository.json` is the local repository ([modding-sdk](modding-sdk.md)).
 
