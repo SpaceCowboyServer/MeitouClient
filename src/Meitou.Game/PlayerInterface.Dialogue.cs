@@ -59,7 +59,15 @@ sealed partial class PlayerInterface
         // The brief needs one or two more text lines than a one-line conversation. Grow only the NPC panel upward; the
         // player/choice panel keeps its normal size.
         if (talk.Page)
+        {
             b.Positions["NpcPanel"] = new UiRect(Width * 0.25f, Height * 0.54f, Width * 0.484375f, Height * 0.20f);
+            // The portrait keeps its normal height as the panel grows; otherwise its relative size stretches vertically.
+            b.Positions["NpcPortrait"] = new UiRect(
+                Width * 0.25f + Width * 0.484375f * 0.0268817f,
+                Height * 0.54f + Height * 0.20f * 0.0666667f,
+                Width * 0.484375f * 0.137634f,
+                Height * 0.138889f * 0.853333f);
+        }
         b.Text["NpcName"] = talk.SpeakerName;
         b.Text["PlayerName"] = talk.PlayerName;
         b.Text["NpcDialog"] = talk.Text;
