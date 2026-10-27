@@ -60,7 +60,8 @@ public interface IModContext
   stable `DialogueContext.NpcId`/`NpcName` to `IBountyBoard.Accept` so giver death and the journal work. The game owns the catalog, so
   a plugin no longer provides one under `ModServiceKeys.BountyContracts` (that key is legacy only).
 - **Dialogue:** `context.Dialogue.AddOption(...)` adds dynamic choices to an NPC conversation. `DialogueContext` identifies the NPC,
-  town, day, trader/bartender role and whether the first page is showing; `Selected` runs on the simulation thread.
+  town, day, trader/bartender role, game hours and whether the first page is showing; `Selected` runs on the simulation thread.
+  `ShowPage`/`ClosePage` render a multi-line detail page over the conversation for job briefs and acceptance steps.
 - **Day changes:** `WorldDayChanged` fires once when the game clock crosses midnight; use it to refresh giver batches.
 
 - **Systems:** `AddSystem(Func<ITickSystem>)` appends a factory after the standard systems. The factory runs once for each new world, in

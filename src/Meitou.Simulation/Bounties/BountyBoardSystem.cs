@@ -79,7 +79,7 @@ public sealed class BountyContract
 }
 
 /// <summary>One offer in the faction tab.</summary>
-public readonly record struct BountyOfferView(string Id, string Title, string Detail, int Required, int Reward, float Distance, int DeadlineHours = 0);
+public readonly record struct BountyOfferView(string Id, string Title, string Detail, int Required, int Reward, float Distance, int DeadlineHours = 0, string Target = "");
 
 /// <summary>One accepted contract in the faction tab or a giver's view.</summary>
 public readonly record struct BountyContractView(
@@ -635,7 +635,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         var players = PlayerPositions(world);
         var viewOffers = new List<BountyOfferView>(offers.Count);
         foreach (var offer in offers)
-            viewOffers.Add(new BountyOfferView(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, OfferDistance(world, offer, players), offer.DeadlineHours));
+            viewOffers.Add(new BountyOfferView(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, OfferDistance(world, offer, players), offer.DeadlineHours, offer.TargetName));
         var active = new List<BountyContractView>();
         var journal = new List<BountyContractView>();
         var markers = new List<BountyMarker>();
@@ -654,7 +654,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         publishedGiver.Clear();
         foreach (var group in giverOffers.GroupBy(offer => offer.Giver, StringComparer.Ordinal))
             publishedGiver[group.Key] = [.. group.Select(offer => new BountyOfferView(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward,
-                OfferDistance(world, offer, players), offer.DeadlineHours))];
+                OfferDistance(world, offer, players), offer.DeadlineHours, offer.TargetName))];
     }
 
     float OfferDistance(World world, BountyOffer offer, List<Vector3> players) => offer.Kind switch

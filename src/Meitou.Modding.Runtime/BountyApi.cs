@@ -29,7 +29,7 @@ public sealed class BountyApi : IBountyBoard
             var view = board?.Published;
             if (view is null) return [];
             return [.. view.Offers.Select(offer => new BountyOffer(
-                offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, offer.Distance, offer.DeadlineHours))];
+                offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, offer.Distance, offer.DeadlineHours, offer.Target))];
         }
     }
 
@@ -47,7 +47,7 @@ public sealed class BountyApi : IBountyBoard
     {
         if (string.IsNullOrEmpty(giver)) return [];
         var view = board?.PublishedForGiver(giver) ?? [];
-        return [.. view.Select(offer => new BountyOffer(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, offer.Distance, offer.DeadlineHours))];
+        return [.. view.Select(offer => new BountyOffer(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, offer.Distance, offer.DeadlineHours, offer.Target))];
     }
 
     public IReadOnlyList<ApiBountyContractView> Journal

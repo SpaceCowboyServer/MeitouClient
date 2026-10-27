@@ -134,7 +134,7 @@ public interface IBountyBoard
 
 public sealed record DialogueContext(
     string NpcId, string NpcName, string NpcRecord, string TownId, string TownName,
-    int Day, bool IsTrader, bool IsBartender, bool AtRoot)
+    int Day, bool IsTrader, bool IsBartender, bool AtRoot, double GameHours = -1)
 {
     public string GiverId => (TownId.Length > 0 ? TownId : "unknown") + ":" + NpcRecord;
 }
@@ -145,9 +145,14 @@ public sealed record DialogueOption(
     Func<DialogueContext, bool>? CanShow = null,
     Action<DialogueContext>? Selected = null);
 
+public sealed record DialoguePage(string Text, IReadOnlyList<DialoguePageChoice> Choices);
+public sealed record DialoguePageChoice(string Id, string Text);
+
 public interface IDialogue
 {
     IDisposable AddOption(DialogueOption option);
+    void ShowPage(DialoguePage page, Action<string>? selected = null);
+    void ClosePage();
 }
 ```
 
@@ -176,8 +181,10 @@ public interface IDialogue
 - A giver contract with progress at its required count becomes `Ready`; its reward is paid by `TurnIn`, not on the killing blow.
 - `Board` is a snapshot of the current published global board. The lists are empty before the first board publish.
 - Handler registration order is invocation order. A subscription is removed with `Dispose`.
-- `Dialogue.AddOption` appends dynamic choices to a conversation. `AtRoot` is true on the first page (before a player reply);
-  `IsBartender` is true for a trader in a bar or a bar-squad trader. `GiverId` is the stable town/record key for a bartender's list.
+- `Dialogue.AddOption` appends dynamic choices to a conversation. `ShowPage` replaces the NPC text and choices with a host-rendered
+  page; the callback receives the selected page choice ID, and `ClosePage` returns to the data/root choices. `GameHours` feeds deadlines.
+  `AtRoot` is true on the first page (before a player reply); `IsBartender` is true for a trader in a bar or a bar-squad trader.
+  `GiverId` is the stable town/record key for a bartender's list.
 
 ## Lua mapping
 

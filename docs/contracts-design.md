@@ -52,6 +52,7 @@ instance; the task family and its rules belong to the template.
 - The framework uses deterministic weighted slots, per-template turn-in cooldowns and mutually exclusive tags.
 - Content offers can require relation/rank or a completed contract, roll a reward range, and apply relation changes on completion/failure.
 - Ready/completed/failed/expired events, a journal view of open giver contracts with a Faction-tab detail panel, and target markers on the map.
+- Host-rendered dialogue pages show a contract brief (target, giver, progress, reward, deadline and status) before accept/turn-in.
 - `WorldDayChanged` for daily refresh.
 - Dynamic dialogue choices at the first conversation page.
 - A reusable `frontier.contracts` foundation plugin with `IContractFramework`; `frontier.bounties` is now a content pack
@@ -149,6 +150,5 @@ Use placeholders or a host callback, but resolve once into API strings so C#/Lua
 
 ## Next slice
 
-- Add a dedicated dialogue detail page (the journal currently hosts the full detail panel).
 - Add reward items and richer multi-step consequences.
 - Add generated named targets that move between regions and saved contracts.

@@ -4,7 +4,7 @@ Foundation plugin for reusable giver contracts. It owns the content-neutral beha
 
 - registering contract templates through `IContractFramework`
 - three slots per bartender
-- dialogue options for asking, taking and turning in
+- dialogue options for asking, a multi-line job detail page, taking and turning in
 - daily replacement of finished slots
 - deadlines, giver-death failure and the journal's open giver contracts
 - save state for generated giver slots

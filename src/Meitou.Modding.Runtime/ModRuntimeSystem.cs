@@ -20,7 +20,11 @@ public sealed class ModRuntimeSystem(ModApiRuntime api, BountyBoardSystem? board
         board ??= world.Systems.OfType<BountyBoardSystem>().FirstOrDefault();
         api.AttachBoard(board);
         api.AttachWorld(world);
-        if (world.Systems.OfType<DialogueSystem>().FirstOrDefault() is { } dialogue) dialogue.OptionSource = api.Dialogue;
+        if (world.Systems.OfType<DialogueSystem>().FirstOrDefault() is { } dialogue)
+        {
+            dialogue.OptionSource = api.Dialogue;
+            dialogue.PageSource = api.Dialogue;
+        }
         int currentDay = (int)Math.Floor(world.GameHours / 24);
         if (!started)
         {

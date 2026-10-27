@@ -107,6 +107,9 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
     /// <summary>The host's extra conversation choices (the mod API's dialogue hook); null: only the data's dialogue.</summary>
     public IDialogueOptionSource? OptionSource { get; set; }
 
+    /// <summary>The host's optional page over the current conversation (a contract detail, etc.); null: the data choices.</summary>
+    public IDialoguePageSource? PageSource { get; set; }
+
     /// <summary>The squads' memories of characters (docs/game/dialogue.md "Squad memory"): written by dialogue effects and player conversations, read by the conditions.</summary>
     public SquadMemory Memory { get; } = new();
 
@@ -356,6 +359,22 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
     void Choose(World world, Conversation c, int index)
     {
         if (bailList is not null && (uint)index < (uint)c.Choices.Count) { ChooseBail(world, c, index); return; }
+        if (PageSource is { } pages)
+        {
+            var pageSituation = Situation(world, c, c.AtRoot);
+            if (pages.Page(world, pageSituation) is { } page)
+            {
+                if ((uint)index >= (uint)page.Choices.Count) return;
+                pages.SelectPage(world, pageSituation, page.Choices[index].Id);
+                if (!c.Ended && pages.Page(world, Situation(world, c, c.AtRoot)) is null)
+                {
+                    if (c.Line is { } line) Offer(world, c, line);
+                    else c.Ended = true;
+                }
+                RefreshView(world);
+                return;
+            }
+        }
         if (index >= c.Choices.Count)
         {
             int extra = index - c.Choices.Count;
@@ -393,6 +412,7 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
     /// <summary>Ends the open conversation (<c>FUN_140674830</c>): the event counter and its time, the speaker squad's memory of the partner, the NPC released.</summary>
     void End(World world)
     {
+        PageSource?.ClosePage();
         if (open is not { } c) return;
         open = null;
         view = null;
@@ -431,7 +451,7 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
         var town = site is >= 0 && site < data.Sites.Count ? data.Sites[site].Town : null;
         bool trader = cold is not null && (squad?.Shop is not null || data.Db.Find(cold.RecordId)?.GetBool("is trader") == true);
         return new DialogueSituation(c.Npc, c.Player, NameOf(world, c.Npc), cold?.RecordId ?? "", town?.Id ?? "", town?.Name ?? "",
-            (int)Math.Floor(world.GameHours / 24), trader, cold is not null && IsBartender(cold, squad), atRoot);
+            (int)Math.Floor(world.GameHours / 24), trader, cold is not null && IsBartender(cold, squad), atRoot, world.GameHours);
     }
 
     /// <summary>A trader whose shop is a bar squad's or whose home is a public bar: the role mods use for bartender contracts.</summary>
@@ -452,8 +472,12 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
     {
         RefreshCharacterTrade(world);
         if (open is not { } c) { view = null; return; }
-        view = new ConversationView(c.Npc, c.Player, c.Speaker, NameOf(world, c.Speaker.IsNone ? c.Npc : c.Speaker), NameOf(world, c.Player), c.Text,
-            [.. c.Choices.Select(x => x.Text), .. c.ExtraChoices.Select(x => x.Text)], [.. c.Log], world.Player.Money);
+        if (PageSource?.Page(world, Situation(world, c, c.AtRoot)) is { } page)
+            view = new ConversationView(c.Npc, c.Player, c.Speaker, NameOf(world, c.Speaker.IsNone ? c.Npc : c.Speaker), NameOf(world, c.Player), page.Text,
+                [.. page.Choices.Select(x => x.Text)], [.. c.Log], world.Player.Money);
+        else
+            view = new ConversationView(c.Npc, c.Player, c.Speaker, NameOf(world, c.Speaker.IsNone ? c.Npc : c.Speaker), NameOf(world, c.Player), c.Text,
+                [.. c.Choices.Select(x => x.Text), .. c.ExtraChoices.Select(x => x.Text)], [.. c.Log], world.Player.Money);
     }
 
     public ConversationView? PublishConversation() => view;

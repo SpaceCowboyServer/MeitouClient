@@ -1,15 +1,20 @@
 using Meitou.Modding.Api;
 using Meitou.Simulation;
 using Meitou.Simulation.Dialogue;
+using ApiDialoguePage = Meitou.Modding.Api.DialoguePage;
+using SimDialoguePage = Meitou.Simulation.Dialogue.DialoguePage;
+using SimDialoguePageChoice = Meitou.Simulation.Dialogue.DialoguePageChoice;
 
 namespace Meitou.Modding.Runtime;
 
 /// <summary>The API's dynamic conversation choices, adapted to the dialogue system's option source.</summary>
-public sealed class ModDialogue : IDialogue, IDialogueOptionSource
+public sealed class ModDialogue : IDialogue, IDialogueOptionSource, IDialoguePageSource
 {
     readonly Action<string>? write;
     readonly object gate = new();
     readonly List<DialogueOption> options = [];
+    SimDialoguePage? page;
+    Action<string>? pageSelected;
 
     public ModDialogue(Action<string>? write = null) => this.write = write;
 
@@ -63,9 +68,46 @@ public sealed class ModDialogue : IDialogue, IDialogueOptionSource
 
     public void AttachWorld(World world) { }
 
+    public void ShowPage(ApiDialoguePage page, Action<string>? selected = null)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(page.Text);
+        var choices = page.Choices?.Select(choice => new SimDialoguePageChoice(choice.Id, choice.Text)).ToArray() ?? [];
+        var mapped = new SimDialoguePage(page.Text, choices);
+        lock (gate)
+        {
+            this.page = mapped;
+            pageSelected = selected;
+        }
+    }
+
+    public void ClosePage()
+    {
+        lock (gate)
+        {
+            page = null;
+            pageSelected = null;
+        }
+    }
+
+    public SimDialoguePage? Page(World world, DialogueSituation situation)
+    {
+        lock (gate) return page;
+    }
+
+    public bool SelectPage(World world, DialogueSituation situation, string optionId)
+    {
+        Action<string>? callback;
+        lock (gate) callback = pageSelected;
+        if (callback is null) return false;
+        try { callback(optionId); }
+        catch (Exception e) { write?.Invoke($"mods: dialogue page failed: {e.GetBaseException().Message}"); }
+        return true;
+    }
+
     static DialogueContext Context(DialogueSituation situation) => new(
         situation.Npc.ToString(), situation.NpcName, situation.NpcRecord, situation.TownId, situation.TownName,
-        situation.Day, situation.IsTrader, situation.IsBartender, situation.AtRoot);
+        situation.Day, situation.IsTrader, situation.IsBartender, situation.AtRoot, situation.GameHours);
 
     void Remove(DialogueOption option)
     {

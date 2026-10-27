@@ -65,6 +65,11 @@ public class BartenderSampleTests
 
         var offer = api.Board.OffersFor(giver)[0];
         Assert.True(api.Dialogue.Select(world, situation, "frontier.contracts:slot-0"));
+        var page = Assert.IsType<Meitou.Simulation.Dialogue.DialoguePage>(api.Dialogue.Page(world, situation));
+        Assert.Contains("Reward:", page.Text);
+        Assert.Contains("Deadline:", page.Text);
+        Assert.Contains(page.Choices, choice => choice.Id == "accept");
+        Assert.True(api.Dialogue.SelectPage(world, situation, "accept"));
         Assert.Single(api.Board.ActiveFor(giver));
         Assert.Equal(offer.Id, api.Board.ActiveFor(giver)[0].Id);
         var journal = Assert.Single(api.Board.Journal);
@@ -72,7 +77,7 @@ public class BartenderSampleTests
         Assert.Equal("Barman", journal.GiverName);
         Assert.Equal(BountyStatus.Accepted, journal.Status);
         Assert.True(journal.ExpiresAtGameHours > journal.AcceptedAtGameHours);
-        Assert.Contains(api.Dialogue.Options(world, situation), option => option.Text?.StartsWith("In progress:", StringComparison.Ordinal) == true);
+        Assert.Contains(api.Dialogue.Options(world, situation), option => option.Text?.StartsWith("Details:", StringComparison.Ordinal) == true);
 
         // An active slot stays on the next day; a finished slot is replaced individually.
         api.EventBus.Publish(new WorldDayChanged(2, 1, 48));
@@ -139,6 +144,8 @@ public class BartenderSampleTests
         var giver = situation.GiverId;
         Assert.Single(api.Board.OffersFor(giver));
         Assert.True(api.Dialogue.Select(world, situation, "frontier.contracts:slot-0"));
+        Assert.NotNull(api.Dialogue.Page(world, situation));
+        Assert.True(api.Dialogue.SelectPage(world, situation, "accept"));
         var contract = Assert.Single(board.Contracts);
         contract.State = BountyState.ReadyToTurnIn;
         Assert.True(api.Board.TurnIn(contract.Id));

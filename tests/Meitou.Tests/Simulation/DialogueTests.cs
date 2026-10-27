@@ -67,6 +67,24 @@ public class DialogueTests
         Rec("member-l", FcsRecordType.DIALOGUE_LINE, r => r.Strings["text0"] = "Need to sell off some junk?"),
     ]), []);
 
+    sealed class PageOptions : IDialoguePageSource
+    {
+        public bool Active { get; set; }
+        public string? Selected { get; private set; }
+
+        public DialoguePage? Page(SimWorld world, DialogueSituation situation) =>
+            Active ? new DialoguePage("Job details block", [new("accept", "Accept"), new("back", "Back")]) : null;
+
+        public bool SelectPage(SimWorld world, DialogueSituation situation, string optionId)
+        {
+            Selected = optionId;
+            Active = false;
+            return true;
+        }
+
+        public void ClosePage() => Active = false;
+    }
+
     sealed class ExtraOptions : IDialogueOptionSource
     {
         public bool Selected { get; private set; }
@@ -186,6 +204,28 @@ public class DialogueTests
         Assert.True(extra.Selected);
         Assert.Equal("Hello.", v.Talk!.Text);
         Assert.Equal(["[Leave]", "Ask extra"], v.Talk.Choices);
+    }
+
+    [Fact]
+    public void A_host_page_replaces_the_conversation_text_and_returns_to_the_root()
+    {
+        using var v = new Village();
+        var pages = new PageOptions();
+        v.Dialogue.PageSource = pages;
+        v.Say(new TalkOrder(v.Hero, v.Villager) { Tick = 0 });
+        v.World.RunTicks(2);
+        Assert.Equal("Hello.", v.Talk!.Text);
+
+        pages.Active = true;
+        v.World.RunTicks(1);
+        Assert.Equal("Job details block", v.Talk!.Text);
+        Assert.Equal(["Accept", "Back"], v.Talk.Choices);
+
+        v.Say(new DialogueChoice(0) { Tick = 0 });
+        v.World.RunTicks(1);
+        Assert.Equal("accept", pages.Selected);
+        Assert.Equal("Hello.", v.Talk!.Text);
+        Assert.Equal(["[Leave]"], v.Talk.Choices);
     }
 
     [Fact]

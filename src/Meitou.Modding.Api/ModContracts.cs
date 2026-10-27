@@ -167,7 +167,7 @@ public enum BountyStatus { Accepted, ReadyToTurnIn, Completed, Failed, Expired }
 
 /// <summary>One offer in the Faction tab or a giver's conversation.</summary>
 public sealed record BountyOffer(
-    string Id, string Title, string Detail, int Required, int Reward, float Distance, int DeadlineHours = 0);
+    string Id, string Title, string Detail, int Required, int Reward, float Distance, int DeadlineHours = 0, string Target = "");
 
 /// <summary>One accepted contract in the Faction tab, a giver conversation or the journal.</summary>
 public sealed record BountyContractView(
@@ -217,16 +217,24 @@ public sealed record DialogueOption(
 /// <summary>The NPC and place a custom dialogue option is offered for.</summary>
 public sealed record DialogueContext(
     string NpcId, string NpcName, string NpcRecord, string TownId, string TownName,
-    int Day, bool IsTrader, bool IsBartender, bool AtRoot)
+    int Day, bool IsTrader, bool IsBartender, bool AtRoot, double GameHours = -1)
 {
     /// <summary>A stable key for a bartender's contract list (town and character record).</summary>
     public string GiverId => (TownId.Length > 0 ? TownId : "unknown") + ":" + NpcRecord;
 }
 
+/// <summary>A host-rendered conversation page: a block of text and its choices.</summary>
+public sealed record DialoguePage(string Text, IReadOnlyList<DialoguePageChoice> Choices);
+public sealed record DialoguePageChoice(string Id, string Text);
+
 /// <summary>Registers dynamic conversation options shared by the C# and Lua hosts.</summary>
 public interface IDialogue
 {
     IDisposable AddOption(DialogueOption option);
+    /// <summary>Shows a page above the conversation; the callback receives the selected page choice ID.</summary>
+    void ShowPage(DialoguePage page, Action<string>? selected = null);
+    /// <summary>Closes the current page and returns to the data/root choices.</summary>
+    void ClosePage();
 }
 
 /// <summary>Stable service keys shared by Meitou mods and the game. Use these instead of spelling a key in several mods.</summary>

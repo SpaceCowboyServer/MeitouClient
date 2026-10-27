@@ -121,13 +121,10 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
             state.Slots[slot] is not { } item) return null;
         string id = ContractId(item.LocalId);
         if (context.Board.ActiveFor(ctx.GiverId).FirstOrDefault(contract => contract.Id == id) is { } active)
-            return active.Ready
-                ? $"Turn in: {active.Title} — {active.Detail}"
-                : $"In progress: {active.Title} ({active.Progress}/{active.Required}) — {active.Detail}";
-        if (context.Board.OffersFor(ctx.GiverId).FirstOrDefault(offer => offer.Id == id) is { } offer)
-            return $"Take: {offer.Title} — {offer.Detail} ({offer.Required} required, c.{offer.Reward:N0}{(offer.DeadlineHours > 0 ? $", {offer.DeadlineHours}h" : "")})";
+            return active.Ready ? $"Details: {active.Title} (ready)" : $"Details: {active.Title} ({active.Progress}/{active.Required})";
+        if (context.Board.OffersFor(ctx.GiverId).FirstOrDefault(offer => offer.Id == id) is { } offer) return $"Details: {offer.Title}";
         if (context.Board.CompletedFor(ctx.GiverId).FirstOrDefault(contract => contract.Id == id) is { } completed)
-            return $"{completed.Title} — completed; new work tomorrow";
+            return $"Details: {completed.Title} (completed)";
         return null;
     }
 
@@ -138,10 +135,43 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
         string id = ContractId(item.LocalId);
         if (context.Board.ActiveFor(ctx.GiverId).FirstOrDefault(contract => contract.Id == id) is { } active)
         {
-            if (active.Ready) context.Board.TurnIn(id);
+            ShowPage(ctx, id, active.Title, active.Target, active.Detail, active.GiverName, active.Progress, active.Required,
+                active.Reward, active.ExpiresAtGameHours < 0 ? "None" : $"{(active.ExpiresAtGameHours <= ctx.GameHours ? "Due" : $"{Math.Ceiling(active.ExpiresAtGameHours - ctx.GameHours)} h")}",
+                active.Ready ? "Ready to turn in" : "Active", canAccept: false, canTurnIn: active.Ready);
             return;
         }
-        if (context.Board.OffersFor(ctx.GiverId).Any(offer => offer.Id == id)) context.Board.Accept(id, ctx.NpcId, ctx.NpcName);
+        if (context.Board.OffersFor(ctx.GiverId).FirstOrDefault(offer => offer.Id == id) is { } offer)
+        {
+            ShowPage(ctx, id, offer.Title, offer.Target, offer.Detail, ctx.NpcName, 0, offer.Required, offer.Reward,
+                offer.DeadlineHours > 0 ? $"{offer.DeadlineHours} h" : "None", "Available", canAccept: true, canTurnIn: false);
+            return;
+        }
+        if (context.Board.CompletedFor(ctx.GiverId).FirstOrDefault(contract => contract.Id == id) is { } completed)
+            ShowPage(ctx, id, completed.Title, completed.Target, completed.Detail, completed.GiverName, completed.Progress, completed.Required,
+                completed.Reward, "Met", "Completed", canAccept: false, canTurnIn: false);
+    }
+
+    void ShowPage(DialogueContext ctx, string id, string title, string target, string detail, string giver, int progress, int required,
+        int reward, string deadline, string status, bool canAccept, bool canTurnIn)
+    {
+        var choices = new List<DialoguePageChoice>();
+        if (canAccept) choices.Add(new("accept", "Accept contract"));
+        if (canTurnIn) choices.Add(new("turnin", "Turn in contract"));
+        choices.Add(new("back", "Back"));
+        string text = $"{title}\n\nTarget: {target}\nGiver: {(giver.Length > 0 ? giver : ctx.NpcName)}\nProgress: {progress}/{required}\nReward: c.{reward:N0}\nDeadline: {deadline}\nStatus: {status}" +
+            (detail.Length > 0 ? $"\n\n{detail}" : "");
+        context.Dialogue.ShowPage(new DialoguePage(text, choices), choice =>
+        {
+            try
+            {
+                if (choice == "accept") context.Board.Accept(id, ctx.NpcId, ctx.NpcName);
+                else if (choice == "turnin") context.Board.TurnIn(id);
+            }
+            finally
+            {
+                context.Dialogue.ClosePage();
+            }
+        });
     }
 
     public void DayChanged(int day)

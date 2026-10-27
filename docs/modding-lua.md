@@ -119,7 +119,7 @@ end)
 
 Contracts restored from a save at the first tick are recorded without replaying accept/ready/failed/expired events; subsequent transitions fire normally.
 A contract abandoned and later accepted again is treated as a new accepted contract. Handlers run in registration order on the simulation thread.
-Dynamic dialogue options are C#-only in this slice; Lua can register giver contracts and receive `day.changed`.
+Dynamic dialogue options and detail pages are C#-only; Lua can register giver contracts and receive `day.changed`.
 
 The sample [`frontier.bounty.dust_bandit`](../sdk/samples/frontier.bounty.dust_bandit) depends on the
 [frontier.bounties](../sdk/samples/frontier.bounties) content pack and its
