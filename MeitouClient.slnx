@@ -27,8 +27,12 @@
   <Folder Name="/tests/">
     <Project Path="tests/Meitou.Tests/Meitou.Tests.csproj" />
   </Folder>
+  <Folder Name="/sdk/">
+    <Project Path="sdk/samples/frontier.bounties/FrontierBounties.csproj" />
+  </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Meitou.ModelViewer/Meitou.ModelViewer.csproj" />
+    <Project Path="tools/Meitou.Sdk/Meitou.Sdk.csproj" />
     <Project Path="tools/Meitou.Tools/Meitou.Tools.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,9 @@
+{
+  "id": "frontier.bounties",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "provides": ["frontier.contracts@1"],
+  "trust": "plugin",
+  "assemblies": ["lib/FrontierBounties.dll"],
+  "entry": "Frontier.Bounties.Plugin"
+}

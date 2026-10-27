@@ -585,8 +585,10 @@ faction squad near the player through `PopulationSystem.SpawnSandboxSquad` (idle
 `SimCommand`s from the faction tab (`PlayerInterface.Faction`); offers, progress and the distance to the nearest target are published in
 `WorldSnapshot.Bounties`. Completed contracts stay completed for that save; abandoning clears the target marker and reoffers. Saved in CAMERA
 (`meitou bounty*`, by faction ID and target marker; offers are derived again), so a save whose faction or target disappears drops only that contract.
-Lua scripts can add faction/animal/spawned definitions through `BountyContractCatalog` ([modding-lua](modding-lua.md)); the board builds their offers and saves accepted ones
-like its own. Engine choices: no delivery/turn-in, flat rewards and no deadline; YAML-defined contracts and an external C# framework remain later work.
+C# plugins can provide a shared `BountyContractCatalog` under `ModServiceKeys.BountyContracts`; Lua scripts register into the same catalog, and
+the board builds their offers and saves accepted ones like its own ([modding-csharp](modding-csharp.md), [modding-lua](modding-lua.md)).
+The [frontier.bounties sample](../sdk/samples/frontier.bounties) shows the plugin side. Engine choices: no delivery/turn-in, flat rewards and no
+deadline; YAML-defined contracts remain later work.
 
 ## Cages, beds and locks
 

@@ -41,6 +41,13 @@ public interface IModContext
     void Enqueue(SimCommand command);
 }
 
+/// <summary>Stable service keys shared by Meitou mods and the game. Use these instead of spelling a key in several mods.</summary>
+public static class ModServiceKeys
+{
+    /// <summary>A <c>Meitou.Simulation.Bounties.BountyContractCatalog</c> the game passes to the bounty board and the Lua host.</summary>
+    public const string BountyContracts = "frontier.bounties.contracts";
+}
+
 public interface IModLog
 {
     void Info(string message);

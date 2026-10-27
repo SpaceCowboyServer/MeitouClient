@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The mod authoring SDK: templates, standalone validation, .meitoumod packing and a local package index. JIT-only, like the game. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Meitou.Core\Meitou.Core.csproj" />
+    <ProjectReference Include="..\..\src\Meitou.Data\Meitou.Data.csproj" />
+    <ProjectReference Include="..\..\src\Meitou.Modding\Meitou.Modding.csproj" />
+  </ItemGroup>
+</Project>

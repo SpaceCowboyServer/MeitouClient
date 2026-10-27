@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\src\Meitou.Modding\Meitou.Modding.csproj" />
     <ProjectReference Include="..\..\src\Meitou.Navigation\Meitou.Navigation.csproj" />
     <ProjectReference Include="..\..\src\Meitou.Audio\Meitou.Audio.csproj" />
+    <ProjectReference Include="..\Meitou.Sdk\Meitou.Sdk.csproj" />
   </ItemGroup>
 
 </Project>

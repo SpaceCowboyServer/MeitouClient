@@ -53,6 +53,10 @@ public interface IModContext
 - **Services:** a string-keyed registry shared by the loaded mods (`Provide`, `TryGet`, `Get<T>`). Earlier mods register first; a duplicate
   key is an error. Typed services work when both mods reference the same contract assembly loaded in the default context. Cross-mod
   private contract assemblies are not unified yet.
+- **Bounty catalog:** a framework plugin can provide a `Meitou.Simulation.Bounties.BountyContractCatalog` under
+  `ModServiceKeys.BountyContracts`. `GameHost` passes that catalog to the Lua host and the bounty board, so C# and Lua definitions share
+  one offer set. The [frontier.bounties sample](../sdk/samples/frontier.bounties) does this; no plugin provider means the game creates a
+  private catalog for Lua scripts.
 - **Logging:** `Info`/`Warn`/`Error` write to the game's console/log with the mod ID.
 
 ## Saves

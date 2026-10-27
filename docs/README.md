@@ -31,6 +31,7 @@ used as a naming reference for our 1.0.68 analysis; they are **Observed** until 
 - [modding-csharp](modding-csharp.md): the implemented C# plugin API, loading and save-sidecar contract
 - [modding-lua](modding-lua.md): the implemented Lua host, sandbox, contract registration and events
 - [modding-manifest](modding-manifest.md): `meitou.json`, version ranges, resolution and `profile.lock.json`
+- [modding-sdk](modding-sdk.md): templates, validation, `.meitoumod` packages, local repository and samples
 - [native-ui](native-ui.md)
 - [render-clouds](render-clouds.md)
 - [render-distance-benchmark](render-distance-benchmark.md)

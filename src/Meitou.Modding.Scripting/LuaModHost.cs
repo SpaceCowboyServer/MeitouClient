@@ -17,20 +17,31 @@ public sealed class LuaModHost
 
     readonly Action<string> write;
     readonly List<LuaMod> scripts = [];
-    readonly BountyContractCatalog contracts = new();
+    readonly BountyContractCatalog contracts;
 
-    LuaModHost(Action<string> write) => this.write = write;
+    LuaModHost(Action<string> write, BountyContractCatalog? contracts = null)
+    {
+        this.write = write;
+        this.contracts = contracts ?? new BountyContractCatalog();
+    }
 
     public int ScriptCount => scripts.Count;
     public int SystemCount => scripts.Count == 0 ? 0 : 1;
     public IReadOnlyList<string> LoadedModIds => [.. scripts.Select(script => script.Id)];
     public BountyContractCatalog Contracts => contracts;
 
-    /// <summary>Loads scripts from an already resolved set; plugins and scripts are separate hosts but share the resolution's order within their tier.</summary>
-    public static LuaModHost Load(ModResolution resolution, GameDatabase data, Action<string>? write = null)
+    /// <summary>
+    /// Loads scripts from an already resolved set; plugins and scripts are separate hosts but share the resolution's order within their tier.
+    /// A caller that also loaded plugins can pass the catalog they contributed, so both tiers register into one board.
+    /// </summary>
+    public static LuaModHost Load(ModResolution resolution, GameDatabase data, Action<string>? write = null) =>
+        Load(resolution, data, new BountyContractCatalog(), write);
+
+    public static LuaModHost Load(ModResolution resolution, GameDatabase data, BountyContractCatalog contracts, Action<string>? write = null)
     {
+        ArgumentNullException.ThrowIfNull(contracts);
         var log = write ?? Console.WriteLine;
-        var host = new LuaModHost(log);
+        var host = new LuaModHost(log, contracts);
         foreach (var candidate in resolution.Order)
         {
             if (candidate.Manifest.Trust != ModTrust.Script) continue;

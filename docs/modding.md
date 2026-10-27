@@ -1,8 +1,8 @@
 # Modding foundation
 
-**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host, the Lua host, save mod metadata, safe mode and
-`--validate-mods`, and the core contract board (faction, animal, named and spawned targets) are implemented (2026-10-26); applying YAML content
-to gameplay is planned.** The RE_Kenshi
+**Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host, the Lua host, save mod metadata, safe mode,
+`--validate-mods`, the core contract board (faction, animal, named and spawned targets), and the SDK/package/local-repository flow, with
+no-asset C# and Lua samples, are implemented (2026-10-27); applying YAML content to gameplay is planned.** The RE_Kenshi
 decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay ignored. Data-only Kenshi mods load through the normal readers;
 Meitou's own mods use this plan.
 
@@ -18,7 +18,7 @@ Three mods prove the foundation:
 |---|---|---|
 | `frontier.revolver` | data + assets | item, icon, mesh, sound, load order |
 | `frontier.bounties` | C# plugin | contract service, events, save, core bounty UI |
-| `frontier.bounty.dust_bandit` | data + Lua | contract content, depends on both, consequence |
+| `frontier.bounty.dust_bandit` | Lua + plugin dependency | contract content, dependency, events (no custom assets) |
 
 Done when: the launcher resolves the three; the revolver item appears; a bounty is offered, tracked, paid and saved;
 disabling the revolver or the framework fails with a clear message; `--validate-mods` reports missing deps/assets;
@@ -26,8 +26,9 @@ a broken Lua script does not crash the game.
 
 The **core** part of the bounty slice is implemented as `BountyBoardSystem`: faction-group, animal-species, named non-story and fallback spawned-target
 offers, accept/abandon, progress, payment, the faction-tab UI and CAMERA/character save keys. Lua scripts can register faction, animal and spawned
-contracts through `meitou.contracts.register` and observe the board's events; the external `frontier.bounties` plugin and YAML-defined contract targets/rewards
-remain later work. Rank/progression is deliberately later.
+contracts through `meitou.contracts.register` and observe the board's events. The external C# framework and Lua content samples live in
+[`sdk/samples`](../sdk/samples) and share one `BountyContractCatalog` ([modding-sdk](modding-sdk.md)); YAML-defined contract targets/rewards and
+rank/progression remain later work. The asset-dependent `frontier.revolver` sample is blocked on custom icon/mesh/sound files.
 
 ## Layers
 
@@ -109,8 +110,9 @@ is a development feature; no unload for C#.
 | `src/Meitou.Modding.Plugins` | C# ALC host, services, systems, sidecars |
 | `src/Meitou.Game` | adapters and composition root |
 | `launcher/Meitou.Launcher` | mod list, deps, conflicts, profiles, trust |
-| `tools/Meitou.Tools` | `mod init/validate/pack/graph` |
-| `docs/modding*` | manifest, content, API, trust, saves |
+| `tools/Meitou.Sdk` | templates, standalone validation, `.meitoumod` packing/repository |
+| `tools/Meitou.Tools` | `mod init/validate/pack/install/repo/graph` |
+| `docs/modding*` | manifest, content, API, trust, saves, SDK |
 
 Dependency direction: `Api` references the public Data/Simulation types (direct simulation access is the v1 choice);
 `Plugins` references `Api`/`Core`/`Data`/`Simulation`; `Scripting` references `Core`/`Data`/`Simulation`; `Modding` references `Core`;
@@ -127,7 +129,7 @@ Dependency direction: `Api` references the public Data/Simulation types (direct 
 | 4 | Bounty vertical slice | **done (gameplay):** faction/animal/named/spawned offers, capture, save; external sample plugin/content in Stage 7 |
 | 5 | Lua host/sandbox | **done (core):** Lua contracts/events; broken script isolated |
 | 6 | Save/lifecycle/diagnostics | **done (core):** saved mod IDs/versions, load mismatch report, safe mode, `--validate-mods` |
-| 7 | SDK/docs/distribution | mod template; local repo; Workshop later |
+| 7 | SDK/docs/distribution | **done (local):** templates, validate/pack/install, local repository, no-asset samples; Workshop later |
 
 Order: data → C# → Lua. Do not build the distributor or Lua host before the data/API layers.
 

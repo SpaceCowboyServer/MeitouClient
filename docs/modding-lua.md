@@ -12,7 +12,8 @@ YAML content application, commands, assets, UI and script save state are not imp
   ([modding-csharp](modding-csharp.md) has the matching plugin lifecycle). It skips the no-population and flat sandbox modes.
 - Entry paths use the same case-folding as game data (`GameFiles.Resolve`), stay inside the mod folder and are limited to 1 MiB.
 - A syntax error, a failing initialization, an invalid contract registration or a throwing event handler disables that script. The other scripts
-  and the game keep running; its registered contract definitions are removed.
+  and the game keep running; its registered contract definitions are removed. If a C# plugin provides a catalog at
+  `ModServiceKeys.BountyContracts`, Lua registers into it; otherwise the Lua host owns a private catalog.
 - The Lua host appends one system after the standard systems. It runs on the simulation thread, after the contract board has processed the tick.
 
 ## Sandbox
@@ -84,10 +85,12 @@ end)
 Contracts restored from a save at the first tick are recorded without replaying `bounty.accepted`; subsequent accepts and completions fire normally.
 A contract abandoned and later accepted again is treated as a new accepted contract. Handlers run in registration order on the simulation thread.
 
+The sample [`frontier.bounty.dust_bandit`](../sdk/samples/frontier.bounty.dust_bandit) depends on the sample framework and registers a Dust Bandits
+contract; it uses only base-game data, so it needs no custom assets.
+
 ## Not implemented
 
 - Content-defined contract YAML, localization and consequence data.
 - Lua commands, scheduler, asset/content queries, UI hooks and direct simulation access.
 - Lua save state; contract state is saved by the board. A small `ISaveable` bridge is planned with lifecycle work.
 - Instruction/time budgets, hot reload and unload.
-- A sample `frontier.bounty.dust_bandit` package; the API is ready for it, but the first-slice packaging remains Stage 7.

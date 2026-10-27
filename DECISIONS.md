@@ -29,3 +29,5 @@ Current choices; implementation details belong in the linked references.
   HLSL supplies facts only. [docs/renderer-native.md](docs/renderer-native.md).
 - **GI:** requested by default unless `--no-gi`; ray queries require supported hardware. Faithful keeps flat ambient. Quality may trade performance for
   lighting. Unsupported hardware uses the documented fallback. [docs/render-gi.md](docs/render-gi.md).
+- **Mod distribution:** `.meitoumod` is a deterministic zip of one mod folder; install is copy-only into the mods folder, and a local
+  repository is a package folder plus `meitou-repository.json`. Workshop and remote signing are later. [docs/modding-sdk.md](docs/modding-sdk.md).

@@ -1,5 +1,6 @@
 using Meitou.Modding;
 using Meitou.Modding.Api;
+using Meitou.Simulation.Bounties;
 
 namespace Meitou.Tests.Modding;
 
@@ -14,6 +15,24 @@ public sealed class TestMod : IMod
         context.AddSystem(() => new TestSystem());
         context.Enqueue(new TestCommand { Tick = 0 });
         context.Log.Info("initialized");
+    }
+}
+
+public sealed class BountyProviderMod : IMod
+{
+    public void Initialize(IModContext context)
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register(context.Id, new BountyContractDefinition
+        {
+            Id = context.Id + ":bounty/plugin",
+            Kind = BountyTargetKind.Faction,
+            Objective = BountyObjective.Kill,
+            FactionId = "20-t",
+            Title = "Plugin contract",
+            Reward = 1,
+        });
+        context.Services.Provide(ModServiceKeys.BountyContracts, catalog);
     }
 }
 

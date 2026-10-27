@@ -43,16 +43,22 @@ public sealed class ModManifest
         }
 
         string hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        return Parse(bytes, hash);
+    }
+
+    /// <summary>The same validation as <see cref="Read"/>, for manifests already in memory (a mod package or tool).</summary>
+    public static ModManifestReadResult Parse(byte[] bytes, string? manifestSha256 = null)
+    {
         try
         {
             var manifest = JsonSerializer.Deserialize(bytes, ModdingJson.Default.ModManifest);
-            if (manifest is null) return new(null, "The manifest is empty.", hash);
+            if (manifest is null) return new(null, "The manifest is empty.", manifestSha256);
             string? error = ModManifestValidation.Validate(manifest);
-            return error is null ? new(manifest, null, hash) : new(null, error, hash);
+            return error is null ? new(manifest, null, manifestSha256) : new(null, error, manifestSha256);
         }
         catch (JsonException e)
         {
-            return new(null, e.Message, hash);
+            return new(null, e.Message, manifestSha256);
         }
     }
 

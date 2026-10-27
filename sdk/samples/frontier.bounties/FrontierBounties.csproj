@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>FrontierBounties</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Meitou.Core\Meitou.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\Meitou.Data\Meitou.Data.csproj" />
+    <ProjectReference Include="..\..\..\src\Meitou.Simulation\Meitou.Simulation.csproj" />
+    <ProjectReference Include="..\..\..\src\Meitou.Modding.Api\Meitou.Modding.Api.csproj" />
+  </ItemGroup>
+  <Target Name="CopyModAssembly" AfterTargets="Build">
+    <MakeDir Directories="$(MSBuildProjectDirectory)/lib" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(MSBuildProjectDirectory)/lib" />
+  </Target>
+</Project>

@@ -221,6 +221,8 @@ start the `settings.cfg` value wins. The launcher's labels come from the same `.
   trusted C# plugins ([modding-csharp](modding-csharp.md)). Legacy mods without a manifest keep the rules above.
 - **Play safe mode** starts the game with `--safe-mode`: base data only, no mod level folders or mod code, and `mods.cfg` is not
   changed. `--validate-mods` runs the same diagnostics as `meitou-tools mods` without starting a world.
+- SDK packages install with `meitou-tools mod install`; a folder of `.meitoumod` files plus `meitou-repository.json` is the local repository
+  ([modding-sdk](modding-sdk.md)). The launcher only edits `mods.cfg`; it does not install packages.
 
 ## News
 

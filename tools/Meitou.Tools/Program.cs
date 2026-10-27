@@ -7,6 +7,12 @@ return args switch
 {
     ["formats"] => WithInstall(Formats),
     ["mods"] => WithInstall(Mods),
+    ["mod", "init", var folder, .. var initArgs] => ModCommand.Init(folder, initArgs),
+    ["mod", "validate", var folder] => ModCommand.Validate(folder),
+    ["mod", "pack", var folder, .. var packArgs] => ModCommand.Pack(folder, packArgs),
+    ["mod", "install", var package, .. var installArgs] => ModCommand.Install(package, installArgs),
+    ["mod", "repo", var folder, .. var repoArgs] => ModCommand.Repo(folder, repoArgs),
+    ["mod", "graph", .. var graphArgs] => ModCommand.Graph(graphArgs),
     ["fcs", var path] => Fcs(path),
     ["load"] => WithInstall(Load),
     ["armour", var armourName] => WithInstall(i => Armour(i, armourName)),
@@ -35,6 +41,15 @@ static int Usage()
     Console.Error.WriteLine("""
         meitou-tools formats       count file types under the install's data/ folder
         meitou-tools mods          resolve the enabled manifests and validate their content, assets and code-file paths
+        meitou-tools mod init <folder> [--id id] [--name name] [--template data|script|plugin] [--force]
+                                   create a starter manifest, empty .mod and content/script/plugin files
+        meitou-tools mod validate <folder>  validate one mod folder without an install
+        meitou-tools mod pack <folder> [--out file.meitoumod] [--force] [--skip-validation]
+                                   create a .meitoumod package (generates an empty .mod when absent)
+        meitou-tools mod install <package|id> [--mods dir] [--repo dir] [--version v] [--force]
+                                   install/extract a package into the mods folder
+        meitou-tools mod repo <folder> [--index file]  write a local repository index
+        meitou-tools mod graph [folder]  print dependencies of the install (or one source mod)
         meitou-tools fcs <file>    summarize a .mod/.base file (path, or a name inside data/)
         meitou-tools load          apply the load order and summarize the merged game data
         meitou-tools armour <name> the ARMOUR records of that name after the load order: who defines and modifies them, their fields, and the quicksave's saved copies

@@ -516,5 +516,9 @@ meitou.user.json
 # Meitou UI kit textures, cropped from the user's install by tools/scripts/meitou-ui-textures.ps1
 docs/meitou-ui/reference/textures/
 
+# Local mod packages and the sample plugin's build output
+dist/
+sdk/samples/frontier.bounties/lib/*.dll
+
 # Rendered from the game's UI atlas by make-labels.ps1
 labels/

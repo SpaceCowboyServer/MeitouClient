@@ -9,7 +9,8 @@ mods and saves unchanged. **No game assets are shipped; an installed legal copy 
 Early playable slice: streamed Vulkan world, characters/animation, movement/combat/body state,
 NPC population/partial AI, inventory/trade, saves and native UI. 
 
-Architecture/research: [docs index](docs/README.md)
+Architecture/research: [docs index](docs/README.md). Mod SDK and the no-asset sample mods: [docs/modding-sdk.md](docs/modding-sdk.md),
+[sdk/samples](sdk/samples). The asset-dependent revolver sample is deliberately not shipped without custom assets.
 Website: [meitou.kenshi.wiki](https://meitou.kenshi.wiki/).
 
 ## Download and requirements
