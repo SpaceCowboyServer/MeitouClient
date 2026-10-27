@@ -93,52 +93,68 @@ sealed partial class PlayerInterface
         {
             var board = Bounties?.Invoke();
             var journal = board?.Journal ?? [];
-            if (journalContract is { } selected && !journal.Any(contract => contract.Id == selected)) journalContract = null;
-            var lines = new List<HudLine> { new(Loc.Tr("---Active Contracts---"), "", GreyColour) };
-            if (board is { Active.Count: > 0 })
-                foreach (var contract in board.Active)
-                    lines.Add(new($"{contract.Title}  {contract.Progress}/{contract.Required}", Loc.Tr("Abandon"), MainColour, BadBrightColour,
-                        TooltipRows: BountyTip(contract.Reward, contract.Distance), Action: "bounty-abandon:" + contract.Id, ButtonWidth: 0.27f));
-            else
-                lines.Add(new(Loc.Tr("No active contracts"), "", GreyColour));
-            if (journal.Count > 0)
+            BountyContractView? DetailOf(string id)
             {
-                lines.Add(new("", ""));
-                lines.Add(new(Loc.Tr("---Giver Contracts---"), "", GreyColour));
                 foreach (var contract in journal)
+                    if (contract.Id == id) return contract;
+                return null;
+            }
+            var detail = journalContract is { } selected ? DetailOf(selected) : null;
+            if (journalContract is not null && detail is null) journalContract = null;
+            var lines = new List<HudLine>();
+            if (detail is { } detailContract)
+            {
+                // Details get their own page so the journal/offer sections cannot push the text off the panel.
+                lines.Add(new(Loc.Tr("---Contract Details---"), "", GreyColour));
+                lines.Add(new(Loc.Tr("Target:"), detailContract.Target));
+                lines.Add(new(Loc.Tr("Giver:"), detailContract.GiverName.Length > 0 ? detailContract.GiverName : detailContract.Giver));
+                lines.Add(new(Loc.Tr("Progress:"), $"{detailContract.Progress}/{detailContract.Required}"));
+                lines.Add(new(Loc.Tr("Reward:"), Loc.Tr("c.{1,num}", detailContract.Reward)));
+                lines.Add(new(Loc.Tr("Deadline:"), Deadline(detailContract.ExpiresAtGameHours, detailContract.State)));
+                lines.Add(new(Loc.Tr("Status:"), ContractStatus(detailContract.State)));
+                bool firstDetail = true;
+                foreach (string part in WrapDetail(detailContract.Detail, 46))
                 {
-                    string giver = contract.GiverName.Length > 0 ? contract.GiverName : contract.Giver;
-                    string progress = contract.State == BountyState.ReadyToTurnIn ? Loc.Tr("Ready to turn in") : $"{contract.Progress}/{contract.Required}";
-                    lines.Add(new($"{contract.Title}  {progress}", Loc.Tr("Details"), MainColour, GoodColour,
-                        TooltipRows: JournalTip(contract, giver), Action: "bounty-detail:" + contract.Id, ButtonWidth: 0.27f));
+                    lines.Add(new(firstDetail ? Loc.Tr("Details:") : "", part));
+                    firstDetail = false;
                 }
-                if (journalContract is { } open && journal.FirstOrDefault(contract => contract.Id == open) is { } detail)
+                if (detailContract.State == BountyState.ReadyToTurnIn)
+                    lines.Add(new(Loc.Tr("Turn in at:"), detailContract.GiverName.Length > 0 ? detailContract.GiverName : detailContract.Giver));
+                lines.Add(new("", Loc.Tr("Abandon"), MainColour, BadBrightColour, Action: "bounty-abandon:" + detailContract.Id, ButtonWidth: 0.27f));
+                lines.Add(new("", Loc.Tr("Close"), MainColour, MainColour, Action: "bounty-detail-close", ButtonWidth: 0.27f));
+            }
+            else
+            {
+                lines.Add(new(Loc.Tr("---Active Contracts---"), "", GreyColour));
+                if (board is { Active.Count: > 0 })
+                    foreach (var contract in board.Active)
+                        lines.Add(new($"{contract.Title}  {contract.Progress}/{contract.Required}", Loc.Tr("Abandon"), MainColour, BadBrightColour,
+                            TooltipRows: BountyTip(contract.Reward, contract.Distance), Action: "bounty-abandon:" + contract.Id, ButtonWidth: 0.27f));
+                else
+                    lines.Add(new(Loc.Tr("No active contracts"), "", GreyColour));
+                if (journal.Count > 0)
                 {
                     lines.Add(new("", ""));
-                    lines.Add(new(Loc.Tr("---Contract Details---"), "", GreyColour));
-                    lines.Add(new(Loc.Tr("Target:"), detail.Target));
-                    lines.Add(new(Loc.Tr("Giver:"), detail.GiverName.Length > 0 ? detail.GiverName : detail.Giver));
-                    lines.Add(new(Loc.Tr("Progress:"), $"{detail.Progress}/{detail.Required}"));
-                    lines.Add(new(Loc.Tr("Reward:"), Loc.Tr("c.{1,num}", detail.Reward)));
-                    lines.Add(new(Loc.Tr("Deadline:"), Deadline(detail.ExpiresAtGameHours, detail.State)));
-                    lines.Add(new(Loc.Tr("Status:"), ContractStatus(detail.State)));
-                    if (detail.Detail.Length > 0) lines.Add(new(Loc.Tr("Details:"), detail.Detail));
-                    if (detail.State == BountyState.ReadyToTurnIn)
-                        lines.Add(new(Loc.Tr("Turn in at:"), detail.GiverName.Length > 0 ? detail.GiverName : detail.Giver));
-                    lines.Add(new("", Loc.Tr("Abandon"), MainColour, BadBrightColour, Action: "bounty-abandon:" + detail.Id, ButtonWidth: 0.27f));
-                    lines.Add(new("", Loc.Tr("Close"), MainColour, MainColour, Action: "bounty-detail-close", ButtonWidth: 0.27f));
+                    lines.Add(new(Loc.Tr("---Giver Contracts---"), "", GreyColour));
+                    foreach (var contract in journal)
+                    {
+                        string giver = contract.GiverName.Length > 0 ? contract.GiverName : contract.Giver;
+                        string progress = contract.State == BountyState.ReadyToTurnIn ? Loc.Tr("Ready to turn in") : $"{contract.Progress}/{contract.Required}";
+                        lines.Add(new($"{contract.Title}  {progress}", Loc.Tr("Details"), MainColour, GoodColour,
+                            TooltipRows: JournalTip(contract, giver), Action: "bounty-detail:" + contract.Id, ButtonWidth: 0.27f));
+                    }
                 }
+                lines.Add(new("", ""));
+                lines.Add(new(Loc.Tr("---Available Contracts---"), "", GreyColour));
+                if (board is { Offers.Count: > 0 })
+                    foreach (var offer in board.Offers)
+                        lines.Add(new($"{offer.Title}  {offer.Detail}", Loc.Tr("Accept"), MainColour, GoodColour,
+                            TooltipRows: BountyTip(offer.Reward, offer.Distance), Action: "bounty-accept:" + offer.Id, ButtonWidth: 0.27f));
+                else
+                    lines.Add(new(Loc.Tr("No bounties nearby"), "", GreyColour));
+                lines.Add(new("", ""));
+                lines.Add(new(Loc.Tr("---Upcoming Events---"), "", GreyColour));
             }
-            lines.Add(new("", ""));
-            lines.Add(new(Loc.Tr("---Available Contracts---"), "", GreyColour));
-            if (board is { Offers.Count: > 0 })
-                foreach (var offer in board.Offers)
-                    lines.Add(new($"{offer.Title}  {offer.Detail}", Loc.Tr("Accept"), MainColour, GoodColour,
-                        TooltipRows: BountyTip(offer.Reward, offer.Distance), Action: "bounty-accept:" + offer.Id, ButtonWidth: 0.27f));
-            else
-                lines.Add(new(Loc.Tr("No bounties nearby"), "", GreyColour));
-            lines.Add(new("", ""));
-            lines.Add(new(Loc.Tr("---Upcoming Events---"), "", GreyColour));
             AddLines(controls, "FactionInfoPanel", lines, 20 * scale, StandardPixels);
         }
         if (relationsLineLayout is null || controls.FirstOrDefault(c => c.Name == "RelationsPanel") is not { } panel) return;
@@ -174,6 +190,20 @@ sealed partial class PlayerInterface
                     Properties = new Dictionary<string, string>(c.Properties, StringComparer.Ordinal) { ["FactionLine"] = "1" } });
             }
         }
+    }
+
+    static IEnumerable<string> WrapDetail(string text, int width)
+    {
+        if (text.Length == 0) yield break;
+        string remaining = text;
+        while (remaining.Length > width)
+        {
+            int cut = remaining.LastIndexOf(' ', width);
+            if (cut <= 0) cut = width;
+            yield return remaining[..cut];
+            remaining = remaining[cut..].TrimStart();
+        }
+        yield return remaining;
     }
 
     string Deadline(double at, BountyState state) =>

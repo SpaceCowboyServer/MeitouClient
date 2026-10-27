@@ -17,7 +17,7 @@ public sealed record DialogueEvent(CharacterId Npc, CharacterId Target, int Even
 
 /// <summary>The open player conversation as the conversation window shows it (published with the snapshot).</summary>
 public sealed record ConversationView(CharacterId Npc, CharacterId Player, CharacterId Speaker, string SpeakerName, string PlayerName, string Text,
-    IReadOnlyList<string> Choices, IReadOnlyList<string> Log, long PlayerMoney);
+    IReadOnlyList<string> Choices, IReadOnlyList<string> Log, long PlayerMoney, bool Page = false);
 
 /// <summary>
 /// What a conversation asks the host to do once it has ended: DA_CHARACTER_EDITOR, the surgeon's editor on <see cref="DialogueRequest.Player"/>, already paid; DA_JOIN_SQUAD_WITH_EDIT,
@@ -474,7 +474,7 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
         if (open is not { } c) { view = null; return; }
         if (PageSource?.Page(world, Situation(world, c, c.AtRoot)) is { } page)
             view = new ConversationView(c.Npc, c.Player, c.Speaker, NameOf(world, c.Speaker.IsNone ? c.Npc : c.Speaker), NameOf(world, c.Player), page.Text,
-                [.. page.Choices.Select(x => x.Text)], [.. c.Log], world.Player.Money);
+                [.. page.Choices.Select(x => x.Text)], [.. c.Log], world.Player.Money, Page: true);
         else
             view = new ConversationView(c.Npc, c.Player, c.Speaker, NameOf(world, c.Speaker.IsNone ? c.Npc : c.Speaker), NameOf(world, c.Player), c.Text,
                 [.. c.Choices.Select(x => x.Text), .. c.ExtraChoices.Select(x => x.Text)], [.. c.Log], world.Player.Money);

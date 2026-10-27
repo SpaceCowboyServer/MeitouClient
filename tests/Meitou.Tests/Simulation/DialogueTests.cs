@@ -218,6 +218,7 @@ public class DialogueTests
 
         pages.Active = true;
         v.World.RunTicks(1);
+        Assert.True(v.Talk!.Page);
         Assert.Equal("Job details block", v.Talk!.Text);
         Assert.Equal(["Accept", "Back"], v.Talk.Choices);
 
