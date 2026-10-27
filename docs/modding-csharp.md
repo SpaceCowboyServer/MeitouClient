@@ -54,7 +54,8 @@ public interface IModContext
 - **Bounties:** `context.Bounties.Register(new BountyDefinition(...))` registers one content contract; `context.Board` reads the
   current offers/active/journal views. A non-empty `Giver` makes a bartender contract; it is hidden from the Faction tab, becomes
   `Ready` when done and pays through `TurnIn`. `BountyTarget.Character` picks one nearby non-unique character (by faction, record, or both) at
-  offer time and marks it. `DeadlineHours` expires an unfinished accepted contract; `BountyStatus` exposes
+  offer time and marks it. `RewardMax` rolls the reward; `RequiredFactionId`/`MinRelation`/`MinRank` and
+  `RequiredCompletedContractId` gate offers; `RelationOnComplete`/`RelationOnFailure` change relations. `DeadlineHours` expires an unfinished accepted contract; `BountyStatus` exposes
   accepted/ready/completed/failed/expired, and `BountyReady`/`BountyFailed`/`BountyExpired` are published events. Pass the giver's
   stable `DialogueContext.NpcId`/`NpcName` to `IBountyBoard.Accept` so giver death and the journal work. The game owns the catalog, so
   a plugin no longer provides one under `ModServiceKeys.BountyContracts` (that key is legacy only).
@@ -73,8 +74,9 @@ public interface IModContext
   private contract assemblies are not unified yet.
 - **Contract framework:** a content pack can depend on `frontier.contracts` and call
   `context.Services.Get<IContractFramework>(ModServiceKeys.Contracts)` to register `ContractTemplate`s. `Weight` biases the
-  deterministic daily slate; `CooldownDays` holds a turned-in template out of that giver's slate. The framework interface and DTOs live in
-  `Meitou.Modding.Api`, so the service keeps type identity across plugin load contexts.
+  deterministic daily slate; `CooldownDays` holds a turned-in template out of that giver's slate; non-empty `Tag`s are mutually
+  exclusive in one slate. The framework interface and DTOs live in `Meitou.Modding.Api`, so the service keeps type identity across plugin
+  load contexts.
 - **Shared bounty registry:** `GameHost` creates one catalog and gives the same scoped API to C# and Lua, so both tiers share one offer
   set. The [frontier.contracts foundation](../sdk/samples/frontier.contracts) implements the reusable bartender framework
   (`IContractFramework` and `frontier.contracts@1`); the [frontier.bounties content pack](../sdk/samples/frontier.bounties) depends on

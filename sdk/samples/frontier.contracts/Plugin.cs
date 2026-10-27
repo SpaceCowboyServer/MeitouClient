@@ -48,8 +48,8 @@ public sealed class Plugin : IMod, IContractFramework
             throw new ArgumentException("A contract template needs a title.", nameof(template));
         if (string.IsNullOrWhiteSpace(template.GiverRole))
             throw new ArgumentException("A contract template needs a giver role.", nameof(template));
-        if (template.TownId is null || template.TownName is null)
-            throw new ArgumentException("A contract template's town filters cannot be null.", nameof(template));
+        if (template.TownId is null || template.TownName is null || template.Tag is null)
+            throw new ArgumentException("A contract template's filters cannot be null.", nameof(template));
         if (template.Weight < 1)
             throw new ArgumentException("A contract template's weight must be at least 1.", nameof(template));
         if (template.CooldownDays < 0)
@@ -179,6 +179,8 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
             !state.Cooldowns.TryGetValue(template.Definition.LocalId, out int until) || until <= state.Day).ToArray();
         if (eligible.Length == 0) return;
         var used = new HashSet<string>(state.Slots.Where(slot => slot is not null).Select(slot => slot!.TemplateId), StringComparer.Ordinal);
+        var usedTags = new HashSet<string>(state.Slots.Where(slot => slot is not null)
+            .Select(slot => owner.TemplateById(slot!.TemplateId)?.Tag ?? "").Where(tag => tag.Length > 0), StringComparer.Ordinal);
         var ordered = eligible
             .OrderByDescending(template => WeightedKey(giver, state.Day, template))
             .ToArray();
@@ -189,10 +191,12 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
             {
                 string templateId = template.Definition.LocalId;
                 if (used.Contains(templateId)) continue;
+                if (template.Tag.Length > 0 && usedTags.Contains(template.Tag)) continue;
                 string local = $"contract-{nextSerial++}";
                 if (!TryRegister(giver, local, template)) continue;
                 state.Slots[slot] = new SlotState(local, templateId);
                 used.Add(templateId);
+                if (template.Tag.Length > 0) usedTags.Add(template.Tag);
                 break;
             }
         }

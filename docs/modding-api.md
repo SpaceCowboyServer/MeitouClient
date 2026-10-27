@@ -74,7 +74,14 @@ public sealed record BountyDefinition(
     int Required = 1,
     int Reward = 0,
     string Giver = "",
-    int DeadlineHours = 0);
+    int DeadlineHours = 0,
+    int RewardMax = 0,
+    string RequiredFactionId = "",
+    int MinRelation = -100,
+    int MinRank = 0,
+    string RequiredCompletedContractId = "",
+    int RelationOnComplete = 0,
+    int RelationOnFailure = 0);
 
 public sealed record ContractTemplate(
     BountyDefinition Definition,
@@ -82,7 +89,8 @@ public sealed record ContractTemplate(
     string TownId = "",
     string TownName = "",
     int Weight = 1,
-    int CooldownDays = 0);
+    int CooldownDays = 0,
+    string Tag = "");
 
 public interface IContractFramework
 {
@@ -145,9 +153,11 @@ public interface IDialogue
 
 - `LocalId` uses 1-64 letters, digits, `_`, `-` or `.`; registration returns `<mod id>:bounty/<local id>`.
 - `FactionId` and `TargetRecord` are FCS string IDs. `Required` defaults to 1 and `Reward` to 0. `DeadlineHours` defaults to
-  0 (no deadline) and is capped at 10,000.
+  0 (no deadline) and is capped at 10,000. `RewardMax` above `Reward` rolls the offer's reward once.
 - `BountyTarget.Character` picks a nearby non-unique character at offer time. Use `FactionId`, `TargetRecord`, or both;
   `Required` must be 1. The offer carries the resolved name and marker, and the contract follows that character.
+- `RequiredFactionId`/`MinRelation`/`MinRank` gate an offer on the player's standing; `RequiredCompletedContractId` requires a
+  completed canonical contract ID. `RelationOnComplete`/`RelationOnFailure` change the player's relation with the target faction.
 - `Giver` is a bartender key. A non-empty giver hides the offer from the Faction tab and exposes it through
   `OffersFor`/`ActiveFor`; an empty giver is a normal global contract. `Journal` lists open giver contracts after the player
   walks away from the bar.
@@ -160,6 +170,7 @@ public interface IDialogue
   `frontier.contracts` capability and register templates with `context.Services.Get<IContractFramework>(...)`.
   Template IDs are globally unique; `GiverRole` defaults to `bartender`, and a town filter is optional. `Weight` (at least 1) biases
   the deterministic slot selection; `CooldownDays` keeps a turned-in template out of that giver's slate for the given number of days.
+  Non-empty `Tag`s are mutually exclusive within one giver's slate.
 - Event `Target` is the display name; `Kind` is `faction`, `animal`, `spawned` or `character`; `Objective` is `kill` or `capture`.
 - `Capture` is accepted only for `Spawned` contracts; built-in downed named targets already use the capture path.
 - A giver contract with progress at its required count becomes `Ready`; its reward is paid by `TurnIn`, not on the killing blow.

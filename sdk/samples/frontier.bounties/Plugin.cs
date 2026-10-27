@@ -14,7 +14,9 @@ public sealed class Plugin : IMod
             "Dust Bandit Patrol",
             "One Dust Bandit kill for the frontier board.",
             required: 1,
-            reward: 1500));
+            reward: 1500,
+            rewardMax: 1800,
+            relationOnComplete: 1));
         framework.RegisterTemplate(CharacterTemplate(
             "frontier.bounties.dust-bandit-hunt",
             "Dust Bandit Hunt",
@@ -25,11 +27,13 @@ public sealed class Plugin : IMod
             "Dust Bandit Contract",
             "Three Dust Bandit kills for the frontier board.",
             required: 3,
-            reward: 4500));
+            reward: 4500,
+            relationOnFailure: -1));
         context.Log.Info("registered 3 Dust Bandit contract templates");
     }
 
-    static ContractTemplate Template(string id, string title, string detail, int required, int reward) =>
+    static ContractTemplate Template(string id, string title, string detail, int required, int reward, int rewardMax = 0,
+        int relationOnComplete = 0, int relationOnFailure = 0) =>
         new(new BountyDefinition(
             LocalId: id,
             Target: BountyTarget.Faction,
@@ -39,7 +43,10 @@ public sealed class Plugin : IMod
             FactionId: "200-gamedata.base",
             Required: required,
             Reward: reward,
-            DeadlineHours: 72));
+            DeadlineHours: 72,
+            RewardMax: rewardMax,
+            RelationOnComplete: relationOnComplete,
+            RelationOnFailure: relationOnFailure));
 
     static ContractTemplate CharacterTemplate(string id, string title, string detail, int reward) =>
         new(new BountyDefinition(

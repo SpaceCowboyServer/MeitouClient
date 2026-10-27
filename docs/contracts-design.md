@@ -49,8 +49,9 @@ instance; the task family and its rules belong to the template.
 - Giver-scoped offers, a three-slot framework, turn-in and `ReadyToTurnIn`.
 - Contract deadlines (`DeadlineHours`), `Failed`/`Expired`, saved failure reasons and giver-death failure.
 - Content-defined character contracts select and mark one nearby non-unique character at offer time.
-- The framework uses deterministic weighted slots and per-template turn-in cooldowns.
-- Ready/completed/failed/expired events and a journal view of open giver contracts with a Faction-tab detail panel.
+- The framework uses deterministic weighted slots, per-template turn-in cooldowns and mutually exclusive tags.
+- Content offers can require relation/rank or a completed contract, roll a reward range, and apply relation changes on completion/failure.
+- Ready/completed/failed/expired events, a journal view of open giver contracts with a Faction-tab detail panel, and target markers on the map.
 - `WorldDayChanged` for daily refresh.
 - Dynamic dialogue choices at the first conversation page.
 - A reusable `frontier.contracts` foundation plugin with `IContractFramework`; `frontier.bounties` is now a content pack
@@ -148,5 +149,6 @@ Use placeholders or a host callback, but resolve once into API strings so C#/Lua
 
 ## Next slice
 
-- Add template tags and requirement/consequence policies (relation, rank, prior work, reward ranges and items).
-- Add a dialogue detail page and map markers for the active target/giver.
+- Add a dedicated dialogue detail page (the journal currently hosts the full detail panel).
+- Add reward items and richer multi-step consequences.
+- Add generated named targets that move between regions and saved contracts.

@@ -3,9 +3,9 @@
 Content pack for the reusable [frontier.contracts](../frontier.contracts) framework. It registers three Dust Bandit
 contract templates for every bartender:
 
-- Dust Bandit Patrol: one kill, c.1,500, 72-hour deadline
+- Dust Bandit Patrol: one kill, c.1,500–1,800, 72-hour deadline, +1 relation on completion
 - Dust Bandit Hunt: one nearby non-unique Dust Bandit, c.3,000, 72-hour deadline
-- Dust Bandit Contract: three kills, c.4,500, 72-hour deadline
+- Dust Bandit Contract: three kills, c.4,500, 72-hour deadline, -1 relation on failure
 
 The framework handles the bartender dialogue, giver slots, daily replacement, turn-in and save state. This mod only
 declares the dependency and supplies content; it has no systems or save data of its own.

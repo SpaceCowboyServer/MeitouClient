@@ -139,6 +139,13 @@ public sealed class BountyApi : IBountyBoard
             Reward = definition.Reward,
             Giver = definition.Giver ?? "",
             DeadlineHours = definition.DeadlineHours,
+            RewardMax = definition.RewardMax,
+            RequiredFactionId = definition.RequiredFactionId ?? "",
+            MinRelation = definition.MinRelation,
+            MinRank = definition.MinRank,
+            RequiredCompletedContractId = definition.RequiredCompletedContractId ?? "",
+            RelationOnComplete = definition.RelationOnComplete,
+            RelationOnFailure = definition.RelationOnFailure,
         });
         return id;
     }

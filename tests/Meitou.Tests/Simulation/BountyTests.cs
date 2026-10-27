@@ -102,6 +102,9 @@ public class BountyTests
         Assert.Equal("hub", contract.Giver);
         Assert.Equal(BountyState.Accepted, contract.State);
         Assert.Empty(rig.Board.Published.Active);
+        var marker = Assert.Single(rig.Board.Published.Markers);
+        Assert.Equal(contract.Id, marker.Id);
+        Assert.Equal(100, marker.Position.X, 1);
 
         rig.Board.Died(rig.World, player.Slot, target.Slot);
         Assert.Equal(BountyState.ReadyToTurnIn, contract.State);
@@ -127,6 +130,7 @@ public class BountyTests
         Assert.Equal(BountyState.Completed, contract.State);
         Assert.Equal(777, rig.World.Player.Money);
         Assert.Empty(rig.Board.PublishedForGiver("hub"));
+        Assert.Empty(rig.Board.Published.Markers);
     }
 
     [Fact]
@@ -223,6 +227,98 @@ public class BountyTests
         Assert.Equal("giver_dead", contract.FailureReason);
         Assert.Equal(0, rig.World.Player.Money);
         Assert.Empty(rig.Board.Published.Journal);
+    }
+
+    [Fact]
+    public void A_content_offer_waits_for_relation_and_rank()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/locked", Kind = BountyTargetKind.Faction, Objective = BountyObjective.Kill,
+            Title = "Trusted work", FactionId = "bandits", Required = 1, Reward = 10, Giver = "hub",
+            RequiredFactionId = "bandits", MinRelation = 50, MinRank = 1,
+        });
+        using var rig = new Rig(new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1, MaxOffers = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        _ = rig.Player(Vector2.Zero);
+        _ = rig.Bandit(new Vector2(100, 0));
+        rig.World.Player.Faction = 0;
+        rig.Run(1);
+        Assert.Empty(rig.Board.PublishedForGiver("hub"));
+
+        rig.Data.Relations.Add(0, 1, 60);
+        rig.Data.Relations.SetRank(1, 1);
+        rig.Run(1);
+        Assert.Single(rig.Board.PublishedForGiver("hub"));
+    }
+
+    [Fact]
+    public void A_content_offer_waits_for_a_completed_prerequisite()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/prereq", Kind = BountyTargetKind.Faction, Objective = BountyObjective.Kill,
+            Title = "First job", FactionId = "bandits", Required = 1, Reward = 1,
+        });
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/locked-prereq", Kind = BountyTargetKind.Faction, Objective = BountyObjective.Kill,
+            Title = "Follow-up", FactionId = "bandits", Required = 1, Reward = 2,
+            RequiredCompletedContractId = "frontier.test:bounty/prereq",
+        });
+        using var rig = new Rig(new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1, MaxOffers = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        var player = rig.Player(Vector2.Zero);
+        var target = rig.Bandit(new Vector2(100, 0));
+        rig.Run(1);
+        var first = Assert.Single(rig.Board.Published.Offers);
+        Assert.Equal("frontier.test:bounty/prereq", first.Id);
+        rig.World.Commands.Enqueue(new AcceptBountyCommand(first.Id) { Tick = rig.World.Tick });
+        rig.Run(1);
+        rig.Board.Died(rig.World, player.Slot, target.Slot);
+        Assert.Equal(BountyState.Completed, Assert.Single(rig.Board.Contracts).State);
+
+        rig.Run(1);
+        Assert.Equal("frontier.test:bounty/locked-prereq", Assert.Single(rig.Board.Published.Offers).Id);
+    }
+
+    [Fact]
+    public void A_content_contract_rolls_its_reward_range_and_applies_relation()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/reward", Kind = BountyTargetKind.Faction, Objective = BountyObjective.Kill,
+            Title = "Paid work", FactionId = "bandits", Required = 1, Reward = 100, RewardMax = 200,
+            RelationOnComplete = 5,
+        });
+        using var rig = new Rig(new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1, MaxOffers = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        var player = rig.Player(Vector2.Zero);
+        var target = rig.Bandit(new Vector2(100, 0));
+        rig.World.Player.Faction = 0;
+        float before = rig.Data.Relations.Get(0, 1);
+        rig.Run(1);
+
+        var offer = Assert.Single(rig.Board.Published.Offers);
+        Assert.InRange(offer.Reward, 100, 200);
+        rig.World.Commands.Enqueue(new AcceptBountyCommand(offer.Id) { Tick = rig.World.Tick });
+        rig.Run(1);
+        rig.Board.Died(rig.World, player.Slot, target.Slot);
+
+        Assert.Equal(offer.Reward, rig.World.Player.Money);
+        Assert.Equal(5, rig.Data.Relations.Get(0, 1) - before, 3);
     }
 
     [Fact]

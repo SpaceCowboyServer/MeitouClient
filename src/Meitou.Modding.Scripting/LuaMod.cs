@@ -136,6 +136,8 @@ sealed class LuaMod
 
         string factionId = Text(table, "faction");
         string record = Text(table, "record");
+        string requiredFaction = Text(table, "required_faction");
+        if (requiredFaction.Length > 0) requiredFaction = ResolveRecord(requiredFaction, FcsRecordType.FACTION, "required_faction").StringId;
         if ((target is BountyTarget.Faction or BountyTarget.Spawned or BountyTarget.Character) && factionId.Length > 0)
             factionId = ResolveRecord(factionId, FcsRecordType.FACTION, "faction").StringId;
         if ((target is BountyTarget.AnimalSpecies or BountyTarget.Spawned or BountyTarget.Character) && record.Length > 0)
@@ -158,7 +160,14 @@ sealed class LuaMod
             Required: Int(table, "required", 1),
             Reward: Int(table, "reward", 0),
             Giver: Text(table, "giver"),
-            DeadlineHours: Int(table, "deadline", 0)));
+            DeadlineHours: Int(table, "deadline", 0),
+            RewardMax: Int(table, "reward_max", 0),
+            RequiredFactionId: requiredFaction,
+            MinRelation: Int(table, "min_relation", -100),
+            MinRank: Int(table, "min_rank", 0),
+            RequiredCompletedContractId: Text(table, "required_completed"),
+            RelationOnComplete: Int(table, "relation_on_complete", 0),
+            RelationOnFailure: Int(table, "relation_on_failure", 0)));
     }
 
     static string EventPermission(string name) => name.StartsWith("bounty.", StringComparison.Ordinal)

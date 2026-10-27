@@ -33,7 +33,9 @@ framework.RegisterTemplate(new ContractTemplate(new BountyDefinition(
 
 `GiverRole` defaults to `bartender`; `TownId`/`TownName` can restrict a template to one town. `BountyDefinition.DeadlineHours`
 defaults to 0 (no deadline). `ContractTemplate.Weight` (at least 1) biases the deterministic daily slate; `CooldownDays` holds a
-turned-in template out of that giver's slate for a while. `BountyTarget.Character` selects one nearby non-unique character by `FactionId`, `TargetRecord`, or both;
+turned-in template out of that giver's slate for a while; non-empty `Tag`s are mutually exclusive in one slate. `RewardMax` rolls
+the reward, `RequiredFactionId`/`MinRelation`/`MinRank`/`RequiredCompletedContractId` gate offers, and relation deltas apply on
+completion or failure. `BountyTarget.Character` selects one nearby non-unique character by `FactionId`, `TargetRecord`, or both;
 its `Required` is always one and the board marks the chosen character when the contract is accepted. Template IDs are globally unique. The framework creates the actual per-giver IDs and stores the
 giver's slots and character id in its own save sidecar. The engine fails the contract if the giver dies while loaded and lists
 open giver jobs in the Faction tab journal with a detail panel.

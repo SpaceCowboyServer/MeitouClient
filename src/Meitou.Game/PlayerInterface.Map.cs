@@ -218,6 +218,20 @@ sealed partial class PlayerInterface
             }
         }
 
+        // Open contract targets: green when ready to turn in, red while active.
+        if (Bounties?.Invoke() is { Markers.Count: > 0 } bountyBoard)
+        {
+            var size = GroupSize("Character") * ui;
+            foreach (var bounty in bountyBoard.Markers)
+            {
+                var at = Screen(bounty.Position);
+                string giver = bounty.GiverName.Length > 0 ? $"\nGiver:\t{bounty.GiverName}" : "";
+                string state = bounty.Ready ? "Ready to turn in" : "Active";
+                Marker("map-bounty-" + bounty.Id, "Character", new(at.X - size.X / 2, at.Y - size.Y / 2, size.X, size.Y),
+                    bounty.Ready ? AllyColour : EnemyColour, tooltip: $"{bounty.Title}\nState:\t{state}{giver}");
+            }
+        }
+
         // The movement marker stands on the ordered point (its bottom centre) for 3 s.
         if (Stopwatch.GetTimestamp() < movementMarkerUntil)
         {

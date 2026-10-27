@@ -17,10 +17,22 @@ public sealed record BountyContractDefinition
     public string FactionId { get; init; } = "";
     public int Required { get; init; } = 1;
     public int Reward { get; init; }
+    /// <summary>A random reward range's upper bound; 0: the fixed <see cref="Reward"/>.</summary>
+    public int RewardMax { get; init; }
     /// <summary>A bartender/giver key; empty offers the contract on the global Faction tab.</summary>
     public string Giver { get; init; } = "";
     /// <summary>Game hours before an accepted offer expires; 0: no deadline.</summary>
     public int DeadlineHours { get; init; }
+    /// <summary>An optional faction whose relation/rank gates the offer.</summary>
+    public string RequiredFactionId { get; init; } = "";
+    public int MinRelation { get; init; } = -100;
+    public int MinRank { get; init; }
+    /// <summary>A canonical contract ID that must be completed before the offer appears.</summary>
+    public string RequiredCompletedContractId { get; init; } = "";
+    /// <summary>Relation change (player faction's view) when the contract completes.</summary>
+    public int RelationOnComplete { get; init; }
+    /// <summary>Relation change when the contract fails or expires.</summary>
+    public int RelationOnFailure { get; init; }
     /// <summary>The mod or script that registered the definition; set by <see cref="BountyContractCatalog"/>.</summary>
     public string Source { get; init; } = "";
 }
@@ -100,8 +112,19 @@ public sealed class BountyContractCatalog
             throw new ArgumentException($"A contract needs between 1 and {MaxRequired} required actions.", nameof(definition));
         if (definition.Reward is < 0 or > MaxReward)
             throw new ArgumentException($"A contract reward must be between 0 and {MaxReward}.", nameof(definition));
+        if (definition.RewardMax != 0 && (definition.RewardMax < definition.Reward || definition.RewardMax > MaxReward))
+            throw new ArgumentException($"A contract reward range must end at or above {definition.Reward} and at most {MaxReward}.", nameof(definition));
         if (definition.DeadlineHours is < 0 or > MaxDeadlineHours)
             throw new ArgumentException($"A contract deadline must be between 0 and {MaxDeadlineHours} hours; 0 means no deadline.", nameof(definition));
+        if (definition.MinRelation is < -100 or > 100)
+            throw new ArgumentException("A contract relation requirement must be between -100 and 100.", nameof(definition));
+        if (definition.MinRank is < 0 or > 100)
+            throw new ArgumentException("A contract rank requirement must be between 0 and 100.", nameof(definition));
+        if (definition.RelationOnComplete is < -100 or > 100 || definition.RelationOnFailure is < -100 or > 100)
+            throw new ArgumentException("A contract relation change must be between -100 and 100.", nameof(definition));
+        if (definition.RequiredCompletedContractId is { } required &&
+            (required.Length > 160 || required.Any(char.IsWhiteSpace)))
+            throw new ArgumentException("A prerequisite contract ID must be at most 160 characters without whitespace.", nameof(definition));
         if (!Enum.IsDefined(definition.Kind) || !Enum.IsDefined(definition.Objective))
             throw new ArgumentException("A contract has an unknown target kind or objective.", nameof(definition));
         if (definition.Kind == BountyTargetKind.Faction && string.IsNullOrWhiteSpace(definition.FactionId))

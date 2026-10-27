@@ -64,9 +64,16 @@ local id = meitou.contracts.register {
   detail = "Kill two Dust Bandits", -- optional
   required = 2,                   -- default 1
   reward = 6000,                  -- default 0
+  reward_max = 0,                 -- optional upper reward roll; 0: fixed reward
   objective = "kill",             -- "kill" or "capture"; default kill
   giver = "",                     -- optional bartender key; empty: Faction tab
   deadline = 0,                   -- optional game hours before an unfinished accepted contract expires; 0: none
+  required_faction = "",          -- optional FACTION id/name gating the offer
+  min_relation = -100,            -- player's minimum relation with required_faction
+  min_rank = 0,                   -- player's minimum rank in required_faction
+  required_completed = "",        -- canonical contract ID that must already be completed
+  relation_on_complete = 0,       -- relation change with the target faction
+  relation_on_failure = 0,        -- relation change on fail/expiry
 }
 ```
 
@@ -74,6 +81,8 @@ local id = meitou.contracts.register {
 - `faction` must be an existing `FACTION`; `animal` needs a non-unique `ANIMAL_CHARACTER`; `spawned` needs a non-unique `CHARACTER` and a `FACTION`.
   Each accepts its string ID or its unique display name. `character` needs a `FACTION`, a `CHARACTER` record, or both; the board picks a
   nearby non-unique character and stores its marker at offer time. `character` contracts require exactly one target.
+- `reward_max` rolls the actual reward once when the offer is built. `required_faction` + `min_relation` + `min_rank` and
+  `required_completed` gate the offer; `relation_on_complete`/`relation_on_failure` change relations with the target faction.
 - `capture` is accepted for spawned or character contracts. A built-in downed named target can already use the capture path.
 - A spawned contract creates the target squad on accept through the population's sandbox spawner; the target is marked and saved like a named
   target. The squad is idle in this first version.

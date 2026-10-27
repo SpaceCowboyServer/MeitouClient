@@ -591,7 +591,9 @@ ready, completed, failed and expired changes are published on `IModEvents` ([mod
 is hidden from the Faction tab, is offered through that giver's dialogue, and pays only after the player turns it in; the dialog option
 source and `WorldDayChanged` are the API hooks. A giver contract can carry a `DeadlineHours` limit; an unfinished accepted contract
 expires (a ready one waits for turn-in), and a giver that dies while loaded fails its open contracts. The Faction tab's journal lists
-open giver contracts and opens their target, giver, progress, reward, deadline and state. [frontier.contracts](../sdk/samples/frontier.contracts)
+open giver contracts and opens their target, giver, progress, reward, deadline and state. The map draws a marker at each open contract's loaded
+target, red while active and green when ready. Content may gate offers on relation/rank or a completed contract, roll a reward range, and apply
+relation changes on completion/failure. [frontier.contracts](../sdk/samples/frontier.contracts)
 is the reusable giver framework and [frontier.bounties](../sdk/samples/frontier.bounties) is its Dust Bandit content pack. Engine choices:
 no delivery/turn-in for global contracts (they still pay on the killing blow), flat rewards, and no cancel policy beyond Abandon;
 YAML-defined contracts remain later work.

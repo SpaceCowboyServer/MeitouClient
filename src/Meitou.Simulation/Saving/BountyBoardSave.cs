@@ -41,6 +41,8 @@ public static class BountyBoardSave
             record.Ints[$"{Prefix}{n} progress"] = contract.Progress;
             record.Ints[$"{Prefix}{n} reward"] = contract.Reward;
             record.Ints[$"{Prefix}{n} state"] = (int)contract.State;
+            record.Ints[$"{Prefix}{n} relation complete"] = contract.RelationOnComplete;
+            record.Ints[$"{Prefix}{n} relation failure"] = contract.RelationOnFailure;
             record.Floats[$"{Prefix}{n} accepted"] = (float)contract.AcceptedAtGameHours;
             record.Floats[$"{Prefix}{n} expires"] = (float)contract.ExpiresAtGameHours;
             n++;
@@ -100,8 +102,11 @@ public static class BountyBoardSave
             string reason = record.Strings.GetValueOrDefault($"{Prefix}{k} reason", "");
             double accepted = record.Floats.GetValueOrDefault($"{Prefix}{k} accepted", -1);
             double expires = record.Floats.GetValueOrDefault($"{Prefix}{k} expires", -1);
+            int relationOnComplete = record.Ints.GetValueOrDefault($"{Prefix}{k} relation complete");
+            int relationOnFailure = record.Ints.GetValueOrDefault($"{Prefix}{k} relation failure");
             board.Restore(id, kind, objective, title, name, targetRecord.Length > 0 ? targetRecord : null, target.Length > 0 ? target : null,
-                faction, required, progress, reward, state, giver, detail, giverName, giverNpc, accepted, expires, reason);
+                faction, required, progress, reward, state, giver, detail, giverName, giverNpc, accepted, expires, reason,
+                relationOnComplete, relationOnFailure);
         }
         board.PublishForLoad(world);
     }
@@ -122,7 +127,7 @@ public static class BountyBoardSave
             record.Strings.Remove($"{Prefix}{k} giver npc");
             record.Strings.Remove($"{Prefix}{k} detail");
             record.Strings.Remove($"{Prefix}{k} reason");
-            foreach (string key in new[] { "kind", "objective", "required", "progress", "reward", "state" })
+            foreach (string key in new[] { "kind", "objective", "required", "progress", "reward", "state", "relation complete", "relation failure" })
                 record.Ints.Remove($"{Prefix}{k} {key}");
             record.Floats.Remove($"{Prefix}{k} accepted");
             record.Floats.Remove($"{Prefix}{k} expires");

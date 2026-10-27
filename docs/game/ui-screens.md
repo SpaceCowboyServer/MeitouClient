@@ -777,6 +777,8 @@ decompile unless marked; Meitou's adapter is `PlayerInterface.Map.cs`.
   (negative towards −X). Size 32 × 32 from the layout (**Observed**).
 - **Characters:** `Character` group × UI scale, centred, every 1 s; the player's characters (plus ones campaigns and AI packages track, not modelled);
   hidden at zoom level 0. Downed or dead get nothing special (**Observed**).
+- **Contract targets (Meitou):** open contracts with a loaded target draw a `Character` marker at its position: Enemy for an active job, Ally
+  for ready to turn in. Its type-4 tooltip shows the title, state and giver. Contracts without a loaded target get no marker.
 - **Movement marker:** only after a map right click: at the order point, bottom-centre anchored, colour Movement, for 3 s of real time; opening the map
   hides it.
 - **Towns** (`140491700`, `14048e230`): every placed TOWN except type 8 (NestMarker) and 10, only when its state is `discovered`. Group by type: Outpost

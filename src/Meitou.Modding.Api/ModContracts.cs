@@ -133,7 +133,14 @@ public sealed record BountyDefinition(
     int Required = 1,
     int Reward = 0,
     string Giver = "",
-    int DeadlineHours = 0);
+    int DeadlineHours = 0,
+    int RewardMax = 0,
+    string RequiredFactionId = "",
+    int MinRelation = -100,
+    int MinRank = 0,
+    string RequiredCompletedContractId = "",
+    int RelationOnComplete = 0,
+    int RelationOnFailure = 0);
 
 /// <summary>
 /// A reusable contract template offered through a framework mod. The framework clones <see cref="Definition"/> for each giver and
@@ -145,7 +152,8 @@ public sealed record ContractTemplate(
     string TownId = "",
     string TownName = "",
     int Weight = 1,
-    int CooldownDays = 0);
+    int CooldownDays = 0,
+    string Tag = "");
 
 /// <summary>Implemented by a reusable contract-giver framework; content mods register templates through it.</summary>
 public interface IContractFramework
