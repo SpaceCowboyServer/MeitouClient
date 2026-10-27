@@ -67,6 +67,24 @@ public class DialogueTests
         Rec("member-l", FcsRecordType.DIALOGUE_LINE, r => r.Strings["text0"] = "Need to sell off some junk?"),
     ]), []);
 
+    sealed class ExtraOptions : IDialogueOptionSource
+    {
+        public bool Selected { get; private set; }
+        public DialogueSituation? Last { get; private set; }
+
+        public IReadOnlyList<DialogueChoiceOption> Options(SimWorld world, DialogueSituation situation)
+        {
+            Last = situation;
+            return situation.AtRoot ? [new("extra", "Ask extra")] : [];
+        }
+
+        public bool Select(SimWorld world, DialogueSituation situation, string optionId)
+        {
+            Selected = optionId == "extra";
+            return Selected;
+        }
+    }
+
     sealed class Village : IDisposable
     {
         public PopulationData Data { get; }
@@ -147,6 +165,27 @@ public class DialogueTests
         var loaded = new Meitou.Tests.Combat.Combatant { Name = "x" }.MakeCold();
         DialogueSave.Read(state, loaded);
         Assert.True(loaded.DialogueLocks!["rich-d"]);
+    }
+
+    [Fact]
+    public void A_dynamic_dialogue_option_is_appended_and_selected()
+    {
+        using var v = new Village();
+        var extra = new ExtraOptions();
+        v.Dialogue.OptionSource = extra;
+        v.Say(new TalkOrder(v.Hero, v.Villager) { Tick = 0 });
+        v.World.RunTicks(2);
+
+        Assert.Equal("Hello.", v.Talk!.Text);
+        Assert.Equal(["[Leave]", "Ask extra"], v.Talk.Choices);
+        Assert.True(extra.Last!.AtRoot);
+        Assert.False(extra.Last.IsBartender);
+
+        v.Say(new DialogueChoice(1) { Tick = 0 });
+        v.World.RunTicks(1);
+        Assert.True(extra.Selected);
+        Assert.Equal("Hello.", v.Talk!.Text);
+        Assert.Equal(["[Leave]", "Ask extra"], v.Talk.Choices);
     }
 
     [Fact]
@@ -378,6 +417,17 @@ public class DialogueTests
 [Slow]
 public class DialogueInstallTests
 {
+    sealed class BartenderProbe : IDialogueOptionSource
+    {
+        public DialogueSituation? Last { get; private set; }
+        public IReadOnlyList<DialogueChoiceOption> Options(SimWorld world, DialogueSituation situation)
+        {
+            Last = situation;
+            return [];
+        }
+        public bool Select(SimWorld world, DialogueSituation situation, string optionId) => false;
+    }
+
     [Fact]
     public void The_hub_barman_talks_and_offers_two_replies_and_a_resident_says_a_speech_bubble()
     {
@@ -390,6 +440,8 @@ public class DialogueInstallTests
         var data = PopulationData.Create(db, levels.Towns(), buildings: buildings);
         var hub = data.Sites.Single(s => s.Town.Name == "The Hub");
         var dialogue = new DialogueSystem(data, new DialogueSettings { AmbientEvents = true });
+        var probe = new BartenderProbe();
+        dialogue.OptionSource = probe;
         var walk = new OpenGroundWalkability((_, _) => 300);
         using var world = new SimWorld(new WorldSettings { Seed = 1, PublishSnapshots = false }, walk,
             [new PopulationSystem(data, new PopulationSettings { CheckEveryTicks = 1 }), new MovementSystem(new PathService(walk, true)), dialogue]);
@@ -419,6 +471,7 @@ public class DialogueInstallTests
         Assert.Equal("Barman", talk.SpeakerName);
         Assert.NotEmpty(talk.Text);
         Assert.Equal(2, talk.Choices.Count);   // trade or decline; their texts are picked at random
+        Assert.True(probe.Last?.IsBartender);
 
         // A resident next to the player character says a speech bubble within a few game hours.
         // The Hub is allied with the player: its residents have event 67 lines (most event 3 lines are disabled or conditional in the data); each is said at a chance of 30 % once per squad per half game hour, so the loop spans a few of those.

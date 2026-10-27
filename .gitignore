@@ -522,3 +522,5 @@ sdk/samples/frontier.bounties/lib/*.dll
 
 # Rendered from the game's UI atlas by make-labels.ps1
 labels/
+
+sdk/samples/frontier.contracts/lib/*.dll

@@ -30,6 +30,7 @@
   </Folder>
   <Folder Name="/sdk/">
     <Project Path="sdk/samples/frontier.bounties/FrontierBounties.csproj" />
+    <Project Path="sdk/samples/frontier.contracts/FrontierContracts.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Meitou.ModelViewer/Meitou.ModelViewer.csproj" />

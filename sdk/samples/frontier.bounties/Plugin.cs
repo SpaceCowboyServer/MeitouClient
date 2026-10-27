@@ -2,55 +2,43 @@ using Meitou.Modding.Api;
 
 namespace Frontier.Bounties;
 
-/// <summary>
-/// The frontier bounty framework. It registers a contract through the stable bounty API and subscribes to the shared accepted/completed events;
-/// it also keeps a small saveable heartbeat so loading it exercises the sidecar path.
-/// </summary>
+/// <summary>Content pack: three Dust Bandit contract templates for every bartender.</summary>
 public sealed class Plugin : IMod
 {
     public void Initialize(IModContext context)
     {
-        var id = context.Bounties.Register(new BountyDefinition(
-            LocalId: "dust-bandit-patrol",
+        var framework = context.Services.Get<IContractFramework>(ModServiceKeys.Contracts)
+            ?? throw new InvalidOperationException("frontier.contracts is required but did not provide its framework service.");
+        framework.RegisterTemplate(Template(
+            "frontier.bounties.dust-bandit-patrol",
+            "Dust Bandit Patrol",
+            "One Dust Bandit kill for the frontier board.",
+            required: 1,
+            reward: 1500));
+        framework.RegisterTemplate(Template(
+            "frontier.bounties.dust-bandit-hunt",
+            "Dust Bandit Hunt",
+            "Two Dust Bandit kills for the frontier board.",
+            required: 2,
+            reward: 3000));
+        framework.RegisterTemplate(Template(
+            "frontier.bounties.dust-bandit-contract",
+            "Dust Bandit Contract",
+            "Three Dust Bandit kills for the frontier board.",
+            required: 3,
+            reward: 4500));
+        context.Log.Info("registered 3 Dust Bandit contract templates");
+    }
+
+    static ContractTemplate Template(string id, string title, string detail, int required, int reward) =>
+        new(new BountyDefinition(
+            LocalId: id,
             Target: BountyTarget.Faction,
             Goal: BountyGoal.Kill,
-            Title: "Dust Bandit Patrol",
-            Detail: "Kill one Dust Bandit for the frontier board.",
-            FactionId: "200-gamedata.base",   // FACTION "Dust Bandits"
-            Required: 1,
-            Reward: 1500));
-
-        var heartbeat = new Heartbeat(context.Log);
-        context.Events.Subscribe<WorldTick>(heartbeat.Tick);
-        context.Events.Subscribe<BountyAccepted>(bounty => context.Log.Info($"accepted {bounty.Title} ({bounty.Id})"));
-        context.Events.Subscribe<BountyCompleted>(bounty => context.Log.Info($"completed {bounty.Title} for {bounty.Reward} cats"));
-        context.AddSaveable(heartbeat);
-        context.Log.Info($"registered {id}");
-    }
-}
-
-sealed class Heartbeat(IModLog log) : ISaveable
-{
-    long ticks;
-
-    public string Key => "ticks";
-
-    public void Tick(WorldTick world)
-    {
-        ticks = world.Tick;
-        if (ticks != 0 && ticks % 1_000_000 == 0) log.Info($"heartbeat at tick {ticks}");
-    }
-
-    public void Write(Stream stream)
-    {
-        using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
-        writer.Write(ticks);
-    }
-
-    public void Read(Stream stream)
-    {
-        using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
-        ticks = reader.ReadInt64();
-        if (ticks < 0) throw new InvalidDataException("Negative heartbeat tick count.");
-    }
+            Title: title,
+            Detail: detail,
+            FactionId: "200-gamedata.base",
+            Required: required,
+            Reward: reward,
+            DeadlineHours: 72));
 }

@@ -37,6 +37,9 @@ public interface IModContext
     /// <summary>A read-only view of the board's current offers and accepted contracts.</summary>
     IBountyBoard Board { get; }
 
+    /// <summary>Adds dynamic conversation options for NPCs such as bartenders.</summary>
+    IDialogue Dialogue { get; }
+
     /// <summary>
     /// Registers a per-world system factory. Systems are appended after the standard systems, in mod load order and registration order; the
     /// factory runs once for each new world, so systems must not be shared between worlds. This is a trusted-plugin escape hatch, not part of
@@ -62,6 +65,7 @@ public interface IModApiHost
 {
     IModEvents Events { get; }
     IBountyBoard Board { get; }
+    IDialogue Dialogue { get; }
     /// <summary>Returns a registry that prefixes local IDs with <paramref name="modId"/>.</summary>
     IBountyContracts BountiesFor(string modId);
     /// <summary>Removes every definition a mod registered; used when its initialization fails.</summary>
@@ -80,15 +84,33 @@ public sealed record WorldStarted(ulong Seed, long Tick, long Money, double Game
 /// <summary>One simulation tick, after the bounty board has processed it.</summary>
 public sealed record WorldTick(ulong Seed, long Tick, long Money, double GameHours);
 
+/// <summary>The game clock crossed into a new day (day = floor(game hours / 24)).</summary>
+public sealed record WorldDayChanged(int Day, long Tick, double GameHours);
+
 /// <summary>A contract that became accepted. The string fields use the same values as the Lua payload.</summary>
 public sealed record BountyAccepted(
     string Id, string Title, string Target, string Kind, string Objective,
-    int Required, int Reward, int Progress);
+    int Required, int Reward, int Progress, string Giver = "", string GiverName = "");
+
+/// <summary>A giver contract whose objective is done and whose reward waits for turn-in.</summary>
+public sealed record BountyReady(
+    string Id, string Title, string Target, string Kind, string Objective,
+    int Required, int Reward, string Giver = "", string GiverName = "");
 
 /// <summary>A contract that completed and paid its reward.</summary>
 public sealed record BountyCompleted(
     string Id, string Title, string Target, string Kind, string Objective,
-    int Required, int Reward);
+    int Required, int Reward, string Giver = "", string GiverName = "");
+
+/// <summary>A contract that failed; <see cref="Reason"/> is a stable code such as <c>giver_dead</c>.</summary>
+public sealed record BountyFailed(
+    string Id, string Title, string Target, string Kind, string Objective,
+    int Required, int Reward, string Reason, string Giver = "", string GiverName = "");
+
+/// <summary>A contract that ran out of time; <see cref="Reason"/> is <c>deadline</c>.</summary>
+public sealed record BountyExpired(
+    string Id, string Title, string Target, string Kind, string Objective,
+    int Required, int Reward, string Reason, string Giver = "", string GiverName = "");
 
 /// <summary>What a mod contract targets. Existing characters are not content contracts.</summary>
 public enum BountyTarget { Faction, AnimalSpecies, Spawned }
@@ -109,33 +131,100 @@ public sealed record BountyDefinition(
     string TargetRecord = "",
     string FactionId = "",
     int Required = 1,
-    int Reward = 0);
+    int Reward = 0,
+    string Giver = "",
+    int DeadlineHours = 0);
 
-/// <summary>One offer in the Faction tab.</summary>
+/// <summary>
+/// A reusable contract template offered through a framework mod. The framework clones <see cref="Definition"/> for each giver and
+/// assigns the actual giver key and instance ID.
+/// </summary>
+public sealed record ContractTemplate(
+    BountyDefinition Definition,
+    string GiverRole = "bartender",
+    string TownId = "",
+    string TownName = "");
+
+/// <summary>Implemented by a reusable contract-giver framework; content mods register templates through it.</summary>
+public interface IContractFramework
+{
+    /// <summary>Registers a template for givers matching its role and optional town filter. Template IDs must be unique.</summary>
+    void RegisterTemplate(ContractTemplate template);
+}
+
+/// <summary>The lifecycle state of one accepted contract.</summary>
+public enum BountyStatus { Accepted, ReadyToTurnIn, Completed, Failed, Expired }
+
+/// <summary>One offer in the Faction tab or a giver's conversation.</summary>
 public sealed record BountyOffer(
-    string Id, string Title, string Detail, int Required, int Reward, float Distance);
+    string Id, string Title, string Detail, int Required, int Reward, float Distance, int DeadlineHours = 0);
 
-/// <summary>One accepted contract in the Faction tab.</summary>
+/// <summary>One accepted contract in the Faction tab, a giver conversation or the journal.</summary>
 public sealed record BountyContractView(
-    string Id, string Title, int Progress, int Required, int Reward, float Distance);
+    string Id, string Title, int Progress, int Required, int Reward, float Distance, bool Ready = false, string Giver = "",
+    string Target = "", string Detail = "", string GiverName = "", BountyStatus Status = BountyStatus.Accepted,
+    double AcceptedAtGameHours = -1, double ExpiresAtGameHours = -1);
 
 /// <summary>Registers content contracts into the game's shared board.</summary>
 public interface IBountyContracts
 {
     /// <summary>Registers a local ID and returns the canonical <c>&lt;mod id&gt;:bounty/&lt;local id&gt;</c>.</summary>
     string Register(BountyDefinition definition);
+
+    /// <summary>Removes a definition owned by this mod; offers already accepted stay on the board.</summary>
+    bool Remove(string id);
 }
 
-/// <summary>A read-only view of the board; the lists are snapshots.</summary>
+/// <summary>A read-only view of the board; the lists are snapshots. Giver methods return the contracts offered by one bartender.</summary>
 public interface IBountyBoard
 {
     IReadOnlyList<BountyOffer> Offers { get; }
     IReadOnlyList<BountyContractView> Active { get; }
+    /// <summary>Open giver contracts, for the contract journal.</summary>
+    IReadOnlyList<BountyContractView> Journal { get; }
+    IReadOnlyList<BountyOffer> OffersFor(string giver);
+    IReadOnlyList<BountyContractView> ActiveFor(string giver);
+    IReadOnlyList<BountyContractView> CompletedFor(string giver);
+    /// <summary>
+    /// Accept one giver offer. Applies immediately so the open conversation can refresh its choices. A framework passes the giver's
+    /// stable character id and name so giver death and the journal can be tracked.
+    /// </summary>
+    bool Accept(string offerId, string giverNpc = "", string giverName = "");
+    /// <summary>Turn in a ready giver contract and pay its reward.</summary>
+    bool TurnIn(string contractId);
+    bool Abandon(string contractId);
+    /// <summary>Rebuilds giver offers after definitions changed; safe while the game is paused.</summary>
+    void Refresh();
+}
+
+/// <summary>A dynamic dialogue choice for an NPC. Return null text to hide it.</summary>
+public sealed record DialogueOption(
+    string Id,
+    Func<DialogueContext, string?> Text,
+    Func<DialogueContext, bool>? CanShow = null,
+    Action<DialogueContext>? Selected = null);
+
+/// <summary>The NPC and place a custom dialogue option is offered for.</summary>
+public sealed record DialogueContext(
+    string NpcId, string NpcName, string NpcRecord, string TownId, string TownName,
+    int Day, bool IsTrader, bool IsBartender, bool AtRoot)
+{
+    /// <summary>A stable key for a bartender's contract list (town and character record).</summary>
+    public string GiverId => (TownId.Length > 0 ? TownId : "unknown") + ":" + NpcRecord;
+}
+
+/// <summary>Registers dynamic conversation options shared by the C# and Lua hosts.</summary>
+public interface IDialogue
+{
+    IDisposable AddOption(DialogueOption option);
 }
 
 /// <summary>Stable service keys shared by Meitou mods and the game. Use these instead of spelling a key in several mods.</summary>
 public static class ModServiceKeys
 {
+    /// <summary>The reusable contract-giver framework service.</summary>
+    public const string Contracts = "frontier.contracts";
+
     /// <summary>
     /// Legacy key for a raw <c>Meitou.Simulation.Bounties.BountyContractCatalog</c>. The game now owns the shared catalog and exposes it through
     /// <see cref="IModContext.Bounties"/>; new code should not provide a catalog under this key.

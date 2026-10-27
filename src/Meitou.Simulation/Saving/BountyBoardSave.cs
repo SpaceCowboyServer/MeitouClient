@@ -6,9 +6,9 @@ using Meitou.Simulation.Bounties;
 namespace Meitou.Simulation.Saving;
 
 /// <summary>
-/// The contract board in the CAMERA record: one entry per accepted/completed contract under Meitou-only keys the original ignores. The faction is stored by its
+/// The contract board in the CAMERA record: one entry per open or finished contract under Meitou-only keys the original ignores. The faction is stored by its
 /// FACTION string id and a named target by its stable marker; offers are not saved and are derived from the world. Old saves that only held the faction-group
-/// fields are read as faction contracts.
+/// fields are read as faction contracts, and missing deadline/giver-detail keys read as no deadline/empty text.
 /// </summary>
 public static class BountyBoardSave
 {
@@ -32,10 +32,17 @@ public static class BountyBoardSave
             record.Strings[$"{Prefix}{n} record"] = contract.TargetRecord ?? "";
             record.Strings[$"{Prefix}{n} target"] = contract.TargetMarker ?? "";
             record.Strings[$"{Prefix}{n} faction"] = (uint)contract.Faction < (uint)data.Factions.Count ? data.Factions[contract.Faction].Id : "";
+            record.Strings[$"{Prefix}{n} giver"] = contract.Giver;
+            record.Strings[$"{Prefix}{n} giver name"] = contract.GiverName;
+            record.Strings[$"{Prefix}{n} giver npc"] = contract.GiverNpc;
+            record.Strings[$"{Prefix}{n} detail"] = contract.Detail;
+            record.Strings[$"{Prefix}{n} reason"] = contract.FailureReason;
             record.Ints[$"{Prefix}{n} required"] = contract.Required;
             record.Ints[$"{Prefix}{n} progress"] = contract.Progress;
             record.Ints[$"{Prefix}{n} reward"] = contract.Reward;
             record.Ints[$"{Prefix}{n} state"] = (int)contract.State;
+            record.Floats[$"{Prefix}{n} accepted"] = (float)contract.AcceptedAtGameHours;
+            record.Floats[$"{Prefix}{n} expires"] = (float)contract.ExpiresAtGameHours;
             n++;
         }
         record.Ints[$"{Prefix} count"] = n;
@@ -84,9 +91,17 @@ public static class BountyBoardSave
             int required = Math.Max(1, record.Ints.GetValueOrDefault($"{Prefix}{k} required", 1));
             int progress = Math.Clamp(record.Ints.GetValueOrDefault($"{Prefix}{k} progress"), 0, required);
             int reward = Math.Max(0, record.Ints.GetValueOrDefault($"{Prefix}{k} reward"));
-            bool completed = record.Ints.GetValueOrDefault($"{Prefix}{k} state") == (int)BountyState.Completed;
+            var state = (BountyState)record.Ints.GetValueOrDefault($"{Prefix}{k} state", (int)BountyState.Accepted);
+            if (!Enum.IsDefined(state)) state = BountyState.Accepted;
+            string giver = record.Strings.GetValueOrDefault($"{Prefix}{k} giver", "");
+            string giverName = record.Strings.GetValueOrDefault($"{Prefix}{k} giver name", "");
+            string giverNpc = record.Strings.GetValueOrDefault($"{Prefix}{k} giver npc", "");
+            string detail = record.Strings.GetValueOrDefault($"{Prefix}{k} detail", "");
+            string reason = record.Strings.GetValueOrDefault($"{Prefix}{k} reason", "");
+            double accepted = record.Floats.GetValueOrDefault($"{Prefix}{k} accepted", -1);
+            double expires = record.Floats.GetValueOrDefault($"{Prefix}{k} expires", -1);
             board.Restore(id, kind, objective, title, name, targetRecord.Length > 0 ? targetRecord : null, target.Length > 0 ? target : null,
-                faction, required, progress, reward, completed);
+                faction, required, progress, reward, state, giver, detail, giverName, giverNpc, accepted, expires, reason);
         }
         board.PublishForLoad(world);
     }
@@ -102,8 +117,15 @@ public static class BountyBoardSave
             record.Strings.Remove($"{Prefix}{k} record");
             record.Strings.Remove($"{Prefix}{k} target");
             record.Strings.Remove($"{Prefix}{k} faction");
+            record.Strings.Remove($"{Prefix}{k} giver");
+            record.Strings.Remove($"{Prefix}{k} giver name");
+            record.Strings.Remove($"{Prefix}{k} giver npc");
+            record.Strings.Remove($"{Prefix}{k} detail");
+            record.Strings.Remove($"{Prefix}{k} reason");
             foreach (string key in new[] { "kind", "objective", "required", "progress", "reward", "state" })
                 record.Ints.Remove($"{Prefix}{k} {key}");
+            record.Floats.Remove($"{Prefix}{k} accepted");
+            record.Floats.Remove($"{Prefix}{k} expires");
         }
         record.Ints.Remove($"{Prefix} count");
     }

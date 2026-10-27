@@ -42,17 +42,24 @@ public interface IModContext
     IModEvents Events { get; }
     IBountyContracts Bounties { get; }
     IBountyBoard Board { get; }
+    IDialogue Dialogue { get; }
     void AddSystem(Func<ITickSystem> factory);
     void AddSaveable(ISaveable saveable);
     void Enqueue(SimCommand command);
 }
 ```
 
-- **Events:** `context.Events.Subscribe<WorldTick>(...)` and the other DTOs in [modding-api](modding-api.md). Handlers run on the
-  simulation thread; a throwing handler is logged without stopping other handlers or the world.
+- **Events:** `context.Events.Subscribe<WorldTick>(...)`, `WorldDayChanged`, and the other DTOs in [modding-api](modding-api.md).
+  Handlers run on the simulation thread; a throwing handler is logged without stopping other handlers or the world.
 - **Bounties:** `context.Bounties.Register(new BountyDefinition(...))` registers one content contract; `context.Board` reads the
-  current offers/active view. The game owns the catalog, so a plugin no longer provides one under
-  `ModServiceKeys.BountyContracts` (that key is legacy only).
+  current offers/active/journal views. A non-empty `Giver` makes a bartender contract; it is hidden from the Faction tab, becomes
+  `Ready` when done and pays through `TurnIn`. `DeadlineHours` expires an unfinished accepted contract; `BountyStatus` exposes
+  accepted/ready/completed/failed/expired, and `BountyReady`/`BountyFailed`/`BountyExpired` are published events. Pass the giver's
+  stable `DialogueContext.NpcId`/`NpcName` to `IBountyBoard.Accept` so giver death and the journal work. The game owns the catalog, so
+  a plugin no longer provides one under `ModServiceKeys.BountyContracts` (that key is legacy only).
+- **Dialogue:** `context.Dialogue.AddOption(...)` adds dynamic choices to an NPC conversation. `DialogueContext` identifies the NPC,
+  town, day, trader/bartender role and whether the first page is showing; `Selected` runs on the simulation thread.
+- **Day changes:** `WorldDayChanged` fires once when the game clock crosses midnight; use it to refresh giver batches.
 
 - **Systems:** `AddSystem(Func<ITickSystem>)` appends a factory after the standard systems. The factory runs once for each new world, in
   mod load order and registration order; the first version has no before/after anchors. Plugin systems obey the determinism contract in
@@ -63,9 +70,13 @@ public interface IModContext
 - **Services:** a string-keyed registry shared by the loaded mods (`Provide`, `TryGet`, `Get<T>`). Earlier mods register first; a duplicate
   key is an error. Typed services work when both mods reference the same contract assembly loaded in the default context. Cross-mod
   private contract assemblies are not unified yet.
+- **Contract framework:** a content pack can depend on `frontier.contracts` and call
+  `context.Services.Get<IContractFramework>(ModServiceKeys.Contracts)` to register `ContractTemplate`s. The framework interface and
+  DTOs live in `Meitou.Modding.Api`, so the service keeps type identity across plugin load contexts.
 - **Shared bounty registry:** `GameHost` creates one catalog and gives the same scoped API to C# and Lua, so both tiers share one offer
-  set. The [frontier.bounties sample](../sdk/samples/frontier.bounties) registers a contract through `context.Bounties` and subscribes
-  to `BountyCompleted`.
+  set. The [frontier.contracts foundation](../sdk/samples/frontier.contracts) implements the reusable bartender framework
+  (`IContractFramework` and `frontier.contracts@1`); the [frontier.bounties content pack](../sdk/samples/frontier.bounties) depends on
+  it and registers three Dust Bandit templates.
 - **Logging:** `Info`/`Warn`/`Error` write to the game's console/log with the mod ID.
 
 ## Saves
@@ -89,6 +100,7 @@ public interface IModContext
 
 - Before/after `StandardParts` anchors; every mod system is appended.
 - Dialogue condition/effect registries, console/`SimCommand` command registration, and custom FCS record types.
+- Lua dynamic dialogue options; Lua has the day/bounty events and the `giver` contract field.
 - UI or rendering hooks.
 - Shared save sidecars and command/resource access from Lua.
 - Collectible contexts, unload and hot reload.

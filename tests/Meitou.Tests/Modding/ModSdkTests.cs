@@ -100,25 +100,47 @@ public class ModSdkTests
     }
 
     [Fact]
-    public void The_frontier_bounties_sample_registers_through_the_shared_api()
+    public void The_frontier_framework_and_content_register_through_one_shared_api()
     {
         string root = RepoRoot();
-        string folder = System.IO.Path.Combine(root, "sdk", "samples", "frontier.bounties");
-        string assembly = System.IO.Path.Combine(folder, "lib", "FrontierBounties.dll");
-        Assert.SkipWhen(!File.Exists(assembly), "The sample plugin has not been built.");
+        var framework = SampleCandidate(root, "frontier.contracts", "FrontierContracts.dll");
+        var content = SampleCandidate(root, "frontier.bounties", "FrontierBounties.dll");
+        Assert.SkipWhen(framework is null || content is null, "The sample plugins have not been built.");
 
-        var read = ModManifest.Read(System.IO.Path.Combine(folder, ModManifest.FileName));
-        var manifest = Assert.IsType<ModManifest>(read.Manifest);
-        var candidate = new ModCandidate("frontier.bounties", folder, manifest, read.ManifestSha256 ?? "");
         var log = new List<string>();
         var api = new ModApiRuntime(log.Add);
-        var host = ModPluginHost.Load(new ModResolution([candidate], [], ModApi.CurrentVersion, null), new GameDatabase(), api, log.Add);
+        var host = ModPluginHost.Load(new ModResolution([framework!, content!], [], ModApi.CurrentVersion, null), new GameDatabase(), api, log.Add);
 
-        Assert.Equal(1, host.PluginCount);
-        var definition = Assert.Single(api.Contracts.Definitions);
-        Assert.Equal("frontier.bounties:bounty/dust-bandit-patrol", definition.Id);
-        Assert.Equal("200-gamedata.base", definition.FactionId);
-        Assert.Contains(log, line => line.Contains("registered frontier.bounties:bounty/dust-bandit-patrol", StringComparison.Ordinal));
+        Assert.Equal(2, host.PluginCount);
+        Assert.Empty(api.Contracts.Definitions);
+        Assert.True(host.Services.TryGet(ModServiceKeys.Contracts, out var service));
+        Assert.IsAssignableFrom<IContractFramework>(service);
+        Assert.Contains(log, line => line.Contains("contract-giver framework ready", StringComparison.Ordinal));
+        Assert.Contains(log, line => line.Contains("registered 3 Dust Bandit contract templates", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void The_frontier_content_refuses_to_initialize_without_its_framework()
+    {
+        string root = RepoRoot();
+        var content = SampleCandidate(root, "frontier.bounties", "FrontierBounties.dll");
+        Assert.SkipWhen(content is null, "The sample plugin has not been built.");
+
+        var log = new List<string>();
+        var api = new ModApiRuntime(log.Add);
+        var host = ModPluginHost.Load(new ModResolution([content!], [], ModApi.CurrentVersion, null), new GameDatabase(), api, log.Add);
+
+        Assert.Equal(0, host.PluginCount);
+        Assert.Contains(log, line => line.Contains("frontier.contracts is required", StringComparison.Ordinal));
+    }
+
+    static ModCandidate? SampleCandidate(string root, string folderName, string assemblyName)
+    {
+        string folder = System.IO.Path.Combine(root, "sdk", "samples", folderName);
+        if (!File.Exists(System.IO.Path.Combine(folder, "lib", assemblyName))) return null;
+        var read = ModManifest.Read(System.IO.Path.Combine(folder, ModManifest.FileName));
+        var manifest = Assert.IsType<ModManifest>(read.Manifest);
+        return new ModCandidate(manifest.Id, folder, manifest, read.ManifestSha256 ?? "");
     }
 
     [Fact]

@@ -30,6 +30,9 @@ sealed partial class PlayerInterface
     /// <summary>What was typed in the name box and is not yet accepted (null: nothing).</summary>
     string? factionDraft;
 
+    /// <summary>The giver contract whose journal detail is open (null: none).</summary>
+    string? journalContract;
+
     /// <summary>
     /// The player faction's name in the tab's name box (the original's text is the player interface's faction name). The box takes typing; accepting it or losing the key focus renames
     /// (<see cref="UpdateFactionName"/>, <c>FUN_1404923d0</c>), and a box not being typed in shows the faction's current name.
@@ -50,8 +53,19 @@ sealed partial class PlayerInterface
             Say(new AcceptBountyCommand(e.Action[14..]) { Tick = session.World.Tick });
             return;
         }
+        if (e.Action.StartsWith("bounty-detail:", StringComparison.Ordinal))
+        {
+            journalContract = e.Action[14..];
+            return;
+        }
+        if (e.Action == "bounty-detail-close")
+        {
+            journalContract = null;
+            return;
+        }
         if (e.Action.StartsWith("bounty-abandon:", StringComparison.Ordinal))
         {
+            journalContract = null;
             Say(new AbandonBountyCommand(e.Action[15..]) { Tick = session.World.Tick });
             return;
         }
@@ -78,6 +92,8 @@ sealed partial class PlayerInterface
         if (controls.FirstOrDefault(c => c.Name == "FactionInfoPanel") is not null)
         {
             var board = Bounties?.Invoke();
+            var journal = board?.Journal ?? [];
+            if (journalContract is { } selected && !journal.Any(contract => contract.Id == selected)) journalContract = null;
             var lines = new List<HudLine> { new(Loc.Tr("---Active Contracts---"), "", GreyColour) };
             if (board is { Active.Count: > 0 })
                 foreach (var contract in board.Active)
@@ -85,6 +101,34 @@ sealed partial class PlayerInterface
                         TooltipRows: BountyTip(contract.Reward, contract.Distance), Action: "bounty-abandon:" + contract.Id, ButtonWidth: 0.27f));
             else
                 lines.Add(new(Loc.Tr("No active contracts"), "", GreyColour));
+            if (journal.Count > 0)
+            {
+                lines.Add(new("", ""));
+                lines.Add(new(Loc.Tr("---Giver Contracts---"), "", GreyColour));
+                foreach (var contract in journal)
+                {
+                    string giver = contract.GiverName.Length > 0 ? contract.GiverName : contract.Giver;
+                    string progress = contract.State == BountyState.ReadyToTurnIn ? Loc.Tr("Ready to turn in") : $"{contract.Progress}/{contract.Required}";
+                    lines.Add(new($"{contract.Title}  {progress}", Loc.Tr("Details"), MainColour, GoodColour,
+                        TooltipRows: JournalTip(contract, giver), Action: "bounty-detail:" + contract.Id, ButtonWidth: 0.27f));
+                }
+                if (journalContract is { } open && journal.FirstOrDefault(contract => contract.Id == open) is { } detail)
+                {
+                    lines.Add(new("", ""));
+                    lines.Add(new(Loc.Tr("---Contract Details---"), "", GreyColour));
+                    lines.Add(new(Loc.Tr("Target:"), detail.Target));
+                    lines.Add(new(Loc.Tr("Giver:"), detail.GiverName.Length > 0 ? detail.GiverName : detail.Giver));
+                    lines.Add(new(Loc.Tr("Progress:"), $"{detail.Progress}/{detail.Required}"));
+                    lines.Add(new(Loc.Tr("Reward:"), Loc.Tr("c.{1,num}", detail.Reward)));
+                    lines.Add(new(Loc.Tr("Deadline:"), Deadline(detail.ExpiresAtGameHours, detail.State)));
+                    lines.Add(new(Loc.Tr("Status:"), ContractStatus(detail.State)));
+                    if (detail.Detail.Length > 0) lines.Add(new(Loc.Tr("Details:"), detail.Detail));
+                    if (detail.State == BountyState.ReadyToTurnIn)
+                        lines.Add(new(Loc.Tr("Turn in at:"), detail.GiverName.Length > 0 ? detail.GiverName : detail.Giver));
+                    lines.Add(new("", Loc.Tr("Abandon"), MainColour, BadBrightColour, Action: "bounty-abandon:" + detail.Id, ButtonWidth: 0.27f));
+                    lines.Add(new("", Loc.Tr("Close"), MainColour, MainColour, Action: "bounty-detail-close", ButtonWidth: 0.27f));
+                }
+            }
             lines.Add(new("", ""));
             lines.Add(new(Loc.Tr("---Available Contracts---"), "", GreyColour));
             if (board is { Offers.Count: > 0 })
@@ -131,6 +175,28 @@ sealed partial class PlayerInterface
             }
         }
     }
+
+    string Deadline(double at, BountyState state) =>
+        state == BountyState.ReadyToTurnIn ? Loc.Tr("Met")
+        : at < 0 ? Loc.Tr("None") : at <= session.World.GameHours ? Loc.Tr("Due") : Loc.Tr("{1,num} h", (int)Math.Ceiling(at - session.World.GameHours));
+
+    static string ContractStatus(BountyState state) => state switch
+    {
+        BountyState.ReadyToTurnIn => Loc.Tr("Ready to turn in"),
+        BountyState.Completed => Loc.Tr("Completed"),
+        BountyState.Failed => Loc.Tr("Failed"),
+        BountyState.Expired => Loc.Tr("Expired"),
+        _ => Loc.Tr("Active"),
+    };
+
+    IReadOnlyList<(string Key, string Value)> JournalTip(BountyContractView contract, string giver) =>
+    [
+        (Loc.Tr("Reward:"), Loc.Tr("c.{1,num}", contract.Reward)),
+        (Loc.Tr("Giver:"), giver),
+        (Loc.Tr("Progress:"), $"{contract.Progress}/{contract.Required}"),
+        (Loc.Tr("Deadline:"), Deadline(contract.ExpiresAtGameHours, contract.State)),
+        (Loc.Tr("Nearest target:"), float.IsFinite(contract.Distance) ? Loc.Tr("{1,num} m", (int)contract.Distance) : Loc.Tr("Unknown")),
+    ];
 
     /// <summary>A bounty row's tooltip: the reward and the distance to the nearest living member of the target faction.</summary>
     static IReadOnlyList<(string Key, string Value)> BountyTip(int reward, float distance) =>

@@ -15,9 +15,8 @@ data-mod rules.
   "version": "1.0.0",
   "apiVersion": 1,
   "gameVersion": ">=0.16 <0.17",
-  "depends": { "frontier.bounties": ">=1.2 <2", "frontier.revolver": ">=1.0 <2" },
+  "depends": { "frontier.contracts": ">=1.0 <2", "frontier.bounties": ">=1.2 <2", "frontier.revolver": ">=1.0 <2" },
   "optional": { "frontier.weather": ">=0.5" },
-  "provides": ["frontier.contracts@1"],
   "loadAfter": ["frontier.bounties"],
   "permissions": ["events:bounty", "contracts:write"],
   "content": ["content/"],
@@ -38,7 +37,7 @@ data-mod rules.
 | `provides` | Capabilities such as `frontier.contracts@1`. A dependency on the capability ID checks the capability version, or the provider's mod version when `@` is absent. |
 | `loadAfter` | Soft ordering edges to enabled mods or capability providers. Missing targets are ignored. |
 | `conflicts` | Enabled mods or capability providers that cannot be loaded together. |
-| `permissions` | Script capabilities: `events:world`, `events:bounty`, `contracts:write`. Unknown/duplicate entries are errors; an absent or empty list keeps the API 1 legacy defaults. C# plugins are trusted. |
+| `permissions` | Script capabilities: `events:world` (world/day events), `events:bounty`, `contracts:write`. Unknown/duplicate entries are errors; an absent or empty list keeps the API 1 legacy defaults. C# plugins are trusted. |
 | `content` | Relative content roots, e.g. `content/`; must stay inside the mod folder. Parsed in Phase 2. |
 | `assets` | Relative asset roots; same path rules. Parsed in Phase 2. |
 | `trust` | `data`, `script` or `plugin` (lowercase). Native plugins are unsupported. |
@@ -46,7 +45,8 @@ data-mod rules.
 | `assemblies` | C# `plugin` only: relative `.dll` paths inside the mod folder. |
 
 A `plugin` manifest must have `assemblies` and `entry`; a `script` manifest must have an entry path and no assemblies. `data` mods
-cannot ship assemblies. Duplicate `provides` entries are refused.
+cannot ship assemblies. Duplicate `provides` entries are refused. A framework provider advertises its capability, for example
+`"provides": ["frontier.contracts@1"]`; content packs depend on `frontier.contracts` without providing it.
 
 ## Versions
 

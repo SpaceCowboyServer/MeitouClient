@@ -104,6 +104,9 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
 
     public DialogueSettings Settings { get; }
 
+    /// <summary>The host's extra conversation choices (the mod API's dialogue hook); null: only the data's dialogue.</summary>
+    public IDialogueOptionSource? OptionSource { get; set; }
+
     /// <summary>The squads' memories of characters (docs/game/dialogue.md "Squad memory"): written by dialogue effects and player conversations, read by the conditions.</summary>
     public SquadMemory Memory { get; } = new();
 
@@ -124,6 +127,10 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
         public readonly CharacterId[] Interjectors = [CharacterId.None, CharacterId.None, CharacterId.None];
         /// <summary>The choices: a reply line, or <c>null</c> for <c>[...]</c> (continue <see cref="Line"/>) / <c>[Leave]</c> (when <see cref="Line"/> has no next).</summary>
         public readonly List<(DialogueNode? Reply, string Text)> Choices = [];
+        /// <summary>No player reply has been chosen yet: mod options (bartender work, ...) are shown on this first page.</summary>
+        public bool AtRoot { get; set; } = true;
+        /// <summary>The host's extra choices, after <see cref="Choices"/>.</summary>
+        public readonly List<DialogueChoiceOption> ExtraChoices = [];
         public readonly List<string> Log = [];
         public bool Ended;
     }
@@ -336,16 +343,34 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
             c.Choices.Add((child, Expand(world, c, child, PickText(world, c.Player, child), c.Player, c.Npc)));
         }
         if (c.Choices.Count == 0) c.Choices.Add((null, "[Leave]"));
+        c.ExtraChoices.Clear();
+        if (OptionSource is { } source)
+        {
+            var situation = Situation(world, c, c.AtRoot);
+            foreach (var option in source.Options(world, situation))
+                if (!string.IsNullOrWhiteSpace(option.Text) && c.ExtraChoices.Count < 32)
+                    c.ExtraChoices.Add(option);
+        }
     }
 
     void Choose(World world, Conversation c, int index)
     {
-        if ((uint)index >= (uint)c.Choices.Count) return;
-        if (bailList is not null) { ChooseBail(world, c, index); return; }
+        if (bailList is not null && (uint)index < (uint)c.Choices.Count) { ChooseBail(world, c, index); return; }
+        if (index >= c.Choices.Count)
+        {
+            int extra = index - c.Choices.Count;
+            if (extra < c.ExtraChoices.Count && OptionSource is { } source && c.Line is { } line &&
+                source.Select(world, Situation(world, c, c.AtRoot), c.ExtraChoices[extra].Id))
+            {
+                if (!c.Ended) Offer(world, c, line);
+            }
+            return;
+        }
         var (reply, text) = c.Choices[index];
         DialogueNode? from = c.Line;
         if (reply is not null)
         {
+            c.AtRoot = false;
             c.Log.Add($"{NameOf(world, c.Player)}: {text}");
             world.Said(NameOf(world, c.Player) is { Length: > 0 } name ? name : "Player", text, true);
             MarkUsed(world, c, reply);
@@ -354,6 +379,7 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
             from = reply;
         }
         else if (text == "[Leave]" || from is null) { c.Ended = true; return; }
+        else if (text == "[...]") c.AtRoot = false;
         var next = Pick(world, c, from.Children);
         if (next is not { } p) { c.Ended = true; return; }
         if (IsNpcSide(p.Line.Speaker)) Say(world, c, p.Line, p.Speaker);
@@ -396,12 +422,38 @@ public sealed partial class DialogueSystem : ITickSystem, IStateHashed, IDialogu
 
     string NameOf(World world, CharacterId id) => world.Characters.TryResolveNext(id, out int s) && world.Characters.Cold(s) is { } c ? c.Name : "";
 
+    /// <summary>The open conversation's NPC and place for the dynamic option source.</summary>
+    DialogueSituation Situation(World world, Conversation c, bool atRoot)
+    {
+        var cold = Cold(world, c.Npc);
+        var squad = cold is { SquadId: >= 0 } ? world.Squads.Find(cold.SquadId) : null;
+        int site = Position(world, c.Npc) is { } at ? TownAt(at) : -1;
+        var town = site is >= 0 && site < data.Sites.Count ? data.Sites[site].Town : null;
+        bool trader = cold is not null && (squad?.Shop is not null || data.Db.Find(cold.RecordId)?.GetBool("is trader") == true);
+        return new DialogueSituation(c.Npc, c.Player, NameOf(world, c.Npc), cold?.RecordId ?? "", town?.Id ?? "", town?.Name ?? "",
+            (int)Math.Floor(world.GameHours / 24), trader, cold is not null && IsBartender(cold, squad), atRoot);
+    }
+
+    /// <summary>A trader whose shop is a bar squad's or whose home is a public bar: the role mods use for bartender contracts.</summary>
+    bool IsBartender(CharacterCold cold, Squad? squad)
+    {
+        if (cold.IsPlayer || squad is null) return false;
+        bool trader = squad.Shop is not null || data.Db.Find(cold.RecordId)?.GetBool("is trader") == true;
+        if (!trader) return false;
+        if (squad.HomeBuilding is { IsBar: true }) return true;
+        if (squad.Town < 0 || squad.Town >= data.Sites.Count) return false;
+        var faction = (uint)squad.Faction < (uint)data.Factions.Count ? data.Factions[squad.Faction] : null;
+        if (PopulationSystem.BarEntries(data.Sites[squad.Town].Town, faction).Any(e => e.Id == squad.TemplateId)) return true;
+        string name = data.Db.Find(squad.TemplateId)?.Name ?? "";
+        return name.Equals("Bar", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Bar ", StringComparison.OrdinalIgnoreCase) || name.Contains(" bar", StringComparison.OrdinalIgnoreCase);
+    }
+
     internal void RefreshView(World world)
     {
         RefreshCharacterTrade(world);
         if (open is not { } c) { view = null; return; }
         view = new ConversationView(c.Npc, c.Player, c.Speaker, NameOf(world, c.Speaker.IsNone ? c.Npc : c.Speaker), NameOf(world, c.Player), c.Text,
-            [.. c.Choices.Select(x => x.Text)], [.. c.Log], world.Player.Money);
+            [.. c.Choices.Select(x => x.Text), .. c.ExtraChoices.Select(x => x.Text)], [.. c.Log], world.Player.Money);
     }
 
     public ConversationView? PublishConversation() => view;

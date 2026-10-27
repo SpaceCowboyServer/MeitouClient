@@ -1,4 +1,5 @@
 using Meitou.Modding.Api;
+using Meitou.Simulation;
 using Meitou.Simulation.Bounties;
 
 namespace Meitou.Modding.Runtime;
@@ -7,25 +8,28 @@ namespace Meitou.Modding.Runtime;
 public sealed class ModApiRuntime : IModApiHost
 {
     public ModApiRuntime(Action<string>? write = null)
-        : this(new ModEventBus(write), new BountyContractCatalog())
+        : this(new ModEventBus(write), new BountyContractCatalog(), write)
     {
     }
 
-    public ModApiRuntime(ModEventBus events, BountyContractCatalog contracts)
+    public ModApiRuntime(ModEventBus events, BountyContractCatalog contracts, Action<string>? write = null)
     {
         ArgumentNullException.ThrowIfNull(events);
         ArgumentNullException.ThrowIfNull(contracts);
         EventBus = events;
         Contracts = contracts;
         Bounties = new BountyApi(contracts);
+        Dialogue = new ModDialogue(write);
     }
 
     public ModEventBus EventBus { get; }
     public BountyContractCatalog Contracts { get; }
     public BountyApi Bounties { get; }
+    public ModDialogue Dialogue { get; }
 
     public IModEvents Events => EventBus;
     public IBountyBoard Board => Bounties;
+    IDialogue IModApiHost.Dialogue => Dialogue;
 
     public IBountyContracts BountiesFor(string modId)
     {
@@ -37,4 +41,10 @@ public sealed class ModApiRuntime : IModApiHost
 
     /// <summary>Points the board view at the current world's board.</summary>
     public void AttachBoard(BountyBoardSystem? board) => Bounties.Attach(board);
+
+    public void AttachWorld(World world)
+    {
+        Bounties.AttachWorld(world);
+        Dialogue.AttachWorld(world);
+    }
 }

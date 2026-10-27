@@ -111,6 +111,134 @@ public class ModRuntimeTests
         Assert.Equal(world.Tick - 1, ticks[^1].Tick);   // the tick being run; World.Tick advances after SlowWorld
     }
 
+    [Fact]
+    public void A_giver_contract_publishes_ready_then_completed()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/ready", Kind = BountyTargetKind.Faction, Objective = BountyObjective.Kill,
+            Title = "Ready job", FactionId = "20-t", Required = 1, Reward = 5, Giver = "hub",
+        });
+        var api = new ModApiRuntime();
+        var data = SyntheticTown.Data(SyntheticTown.Database());
+        var board = new BountyBoardSystem(data, new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        using var world = new SimWorld(new WorldSettings { Seed = 7, Threads = 1, PublishSnapshots = false },
+            new OpenGroundWalkability((_, _) => 0), [board, new ModRuntimeSystem(api, board)]);
+        var ready = new List<BountyReady>();
+        var completed = new List<BountyCompleted>();
+        api.Events.Subscribe<BountyReady>(ready.Add);
+        api.Events.Subscribe<BountyCompleted>(completed.Add);
+        var player = Spawn(world, data.PlayerFaction, true, "hero", Vector2.Zero);
+        var target = Spawn(world, data.FactionIndex("20-t"), false, "target", new Vector2(100, 0));
+
+        world.RunTicks(1);
+        var offer = Assert.Single(api.Board.OffersFor("hub"));
+        Assert.True(api.Board.Accept(offer.Id, "7.0", "Barman"));
+        world.RunTicks(1);
+        board.Died(world, player.Slot, target.Slot);
+        world.RunTicks(1);
+
+        var eventReady = Assert.Single(ready);
+        Assert.Equal(("Ready job", "hub", "Barman", BountyStatus.ReadyToTurnIn),
+            (eventReady.Title, eventReady.Giver, eventReady.GiverName, Assert.Single(api.Board.Journal).Status));
+        Assert.Empty(completed);
+
+        Assert.True(api.Board.TurnIn(offer.Id));
+        world.RunTicks(1);
+        Assert.Single(completed);
+        Assert.Empty(api.Board.Journal);
+    }
+
+    [Fact]
+    public void A_giver_contract_publishes_failed_when_the_giver_dies()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/failed", Kind = BountyTargetKind.Faction, Objective = BountyObjective.Kill,
+            Title = "Failed job", FactionId = "20-t", Required = 1, Reward = 5, Giver = "hub",
+        });
+        var api = new ModApiRuntime();
+        var data = SyntheticTown.Data(SyntheticTown.Database());
+        var board = new BountyBoardSystem(data, new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        using var world = new SimWorld(new WorldSettings { Seed = 7, Threads = 1, PublishSnapshots = false },
+            new OpenGroundWalkability((_, _) => 0), [board, new ModRuntimeSystem(api, board)]);
+        var failed = new List<BountyFailed>();
+        api.Events.Subscribe<BountyFailed>(failed.Add);
+        var giver = Spawn(world, data.FactionIndex("20-t"), false, "Barman", new Vector2(100, 0));
+
+        world.RunTicks(1);
+        var offer = Assert.Single(api.Board.OffersFor("hub"));
+        Assert.True(api.Board.Accept(offer.Id, giver.ToString(), "Barman"));
+        world.RunTicks(1);
+        world.Characters.Cold(giver.Slot)!.Medical!.Butcher();
+        world.RunTicks(1);
+
+        var failedEvent = Assert.Single(failed);
+        Assert.Equal(("Failed job", "giver_dead", "hub"), (failedEvent.Title, failedEvent.Reason, failedEvent.Giver));
+        Assert.Empty(api.Board.Journal);
+    }
+
+    [Fact]
+    public void A_giver_contract_publishes_expired_at_its_deadline()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/expired", Kind = BountyTargetKind.Faction, Objective = BountyObjective.Kill,
+            Title = "Expired job", FactionId = "20-t", Required = 1, Reward = 5, Giver = "hub", DeadlineHours = 1,
+        });
+        var api = new ModApiRuntime();
+        var data = SyntheticTown.Data(SyntheticTown.Database());
+        var board = new BountyBoardSystem(data, new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        using var world = new SimWorld(new WorldSettings { Seed = 7, Threads = 1, PublishSnapshots = false },
+            new OpenGroundWalkability((_, _) => 0), [board, new ModRuntimeSystem(api, board)]);
+        var expired = new List<BountyExpired>();
+        api.Events.Subscribe<BountyExpired>(expired.Add);
+
+        world.RunTicks(1);
+        var offer = Assert.Single(api.Board.OffersFor("hub"));
+        Assert.True(api.Board.Accept(offer.Id, "7.0", "Barman"));
+        world.RunTicks(1);
+        world.GameHours += 2;
+        world.RunTicks(1);
+
+        var expiredEvent = Assert.Single(expired);
+        Assert.Equal(("Expired job", "deadline", "hub"), (expiredEvent.Title, expiredEvent.Reason, expiredEvent.Giver));
+        Assert.Empty(api.Board.Journal);
+    }
+
+    [Fact]
+    public void The_day_change_event_fires_once_per_crossed_boundary()
+    {
+        var api = new ModApiRuntime();
+        var days = new List<WorldDayChanged>();
+        api.Events.Subscribe<WorldDayChanged>(days.Add);
+        using var world = new SimWorld(new WorldSettings { Seed = 1, Threads = 1, PublishSnapshots = false, StartHours = 37 },
+            new OpenGroundWalkability((_, _) => 0), [new ModRuntimeSystem(api)]);
+
+        world.RunTicks(1);
+        Assert.Empty(days);
+        world.GameHours = 48;
+        world.RunTicks(1);
+        Assert.Equal(2, Assert.Single(days).Day);
+        world.RunTicks(1);
+        Assert.Single(days);
+    }
+
     static CharacterId Spawn(SimWorld world, int faction, bool player, string name, Vector2 at)
     {
         var cold = new CharacterCold

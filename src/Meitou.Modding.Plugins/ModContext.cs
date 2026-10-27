@@ -25,6 +25,7 @@ sealed class ModContext : IModContext, IModLog, IModServices
         Events = api.Events;
         Bounties = api.BountiesFor(candidate.Id);
         Board = api.Board;
+        Dialogue = api.Dialogue;
         RandomSalt = Rng.StableHash(candidate.Id);
         this.write = write;
         this.host = host;
@@ -38,6 +39,7 @@ sealed class ModContext : IModContext, IModLog, IModServices
     public IModEvents Events { get; }
     public IBountyContracts Bounties { get; }
     public IBountyBoard Board { get; }
+    public IDialogue Dialogue { get; }
     public ulong RandomSalt { get; }
     public IModLog Log => this;
     public IModServices Services => this;

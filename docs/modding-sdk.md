@@ -2,7 +2,7 @@
 
 **Implemented (2026-10-27):** `tools/Meitou.Sdk` and `meitou-tools mod ...` scaffold, validate, pack and install a mod without an install.
 The launcher's **Install mod...** button and drag-and-drop install packages without the CLI. A local repository is a folder of
-`.meitoumod` packages plus a generated index; Workshop is later. The two no-asset samples live in [`sdk/samples`](../sdk/samples).
+`.meitoumod` packages plus a generated index; Workshop is later. The three no-asset samples live in [`sdk/samples`](../sdk/samples).
 
 ## Quick start
 
@@ -27,7 +27,7 @@ dotnet run --project tools/Meitou.Tools -- mod init Mods/Hello --id author.hello
 
 A plugin project needs the game's API assemblies. Set `MEITOU_API_DIR` to the folder containing `Meitou.Modding.Api.dll`,
 `Meitou.Simulation.dll`, `Meitou.Data.dll` and `Meitou.Core.dll` (a release build's folder), or set the MSBuild property
-`MeitouApiDir`. The sample [frontier.bounties](../sdk/samples/frontier.bounties) uses project references because it lives in this repository.
+`MeitouApiDir`. The sample plugins use project references because they live in this repository.
 
 ## Commands
 
@@ -67,10 +67,14 @@ place. The original game ignores the package format and the Meitou manifest; aft
 
 ## First-slice samples
 
-- [frontier.bounties](../sdk/samples/frontier.bounties): C# plugin; registers a Dust Bandits contract through `IModContext.Bounties`,
-  subscribes to shared events, keeps an `ISaveable` heartbeat, and has no custom assets.
-- [frontier.bounty.dust_bandit](../sdk/samples/frontier.bounty.dust_bandit): data-less Lua content; depends on `frontier.bounties`,
-  registers a Dust Bandits faction contract, declares the `events:bounty` and `contracts:write` permissions, and logs accepted/completed events.
+- [frontier.contracts](../sdk/samples/frontier.contracts): foundation C# plugin; provides the `frontier.contracts@1` capability and
+  `IContractFramework`, owns the reusable bartender offer/turn-in/day-refresh behavior and its save state, and has no Dust Bandit
+  content.
+- [frontier.bounties](../sdk/samples/frontier.bounties): content C# plugin; depends on `frontier.contracts` and registers three Dust
+  Bandit templates through `IContractFramework`.
+- [frontier.bounty.dust_bandit](../sdk/samples/frontier.bounty.dust_bandit): data-less Lua content; depends on `frontier.bounties`
+  (which pulls in the foundation), registers a global Dust Bandits faction contract, declares `events:world`, `events:bounty` and
+  `contracts:write`, and logs accepted/completed events and `day.changed`.
 
 `frontier.revolver` remains blocked on custom icon/mesh/sound assets; a data-only stand-in would not demonstrate the asset pipeline.
 

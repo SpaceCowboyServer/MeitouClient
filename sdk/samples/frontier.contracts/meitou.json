@@ -1,0 +1,9 @@
+{
+  "id": "frontier.contracts",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "provides": ["frontier.contracts@1"],
+  "trust": "plugin",
+  "assemblies": ["lib/FrontierContracts.dll"],
+  "entry": "Frontier.Contracts.Plugin"
+}

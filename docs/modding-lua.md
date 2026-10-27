@@ -46,8 +46,8 @@ meitou.log.error(text)
 "permissions": ["events:world", "events:bounty", "contracts:write"]
 ```
 
-- `events:world` allows `world.start`/`world.tick`; `events:bounty` allows `bounty.accepted`/`bounty.completed`; `contracts:write`
-  allows `meitou.contracts.register`.
+- `events:world` allows `world.start`/`world.tick`/`day.changed`; `events:bounty` allows `bounty.accepted`/`bounty.ready`/`bounty.completed`/`bounty.failed`/`bounty.expired`;
+  `contracts:write` allows `meitou.contracts.register`.
 - An absent or empty list keeps the API 1 legacy default (all three allowed). A non-empty declared list is enforced strictly; a denied call
   disables the script during initialization.
 - Unknown or duplicate permissions are manifest errors. C# plugins are trusted and not gated by this list.
@@ -65,6 +65,8 @@ local id = meitou.contracts.register {
   required = 2,                   -- default 1
   reward = 6000,                  -- default 0
   objective = "kill",             -- "kill" or "capture"; default kill
+  giver = "",                     -- optional bartender key; empty: Faction tab
+  deadline = 0,                   -- optional game hours before an unfinished accepted contract expires; 0: none
 }
 ```
 
@@ -74,8 +76,12 @@ local id = meitou.contracts.register {
 - `capture` is accepted only for spawned contracts. A built-in downed named target can already use the capture path.
 - A spawned contract creates the target squad on accept through the population's sandbox spawner; the target is marked and saved like a named
   target. The squad is idle in this first version.
+- A non-empty `giver` hides the offer from the Faction tab and makes it available through that bartender's dialogue. A giver contract
+  becomes ready when completed and pays only on turn-in. A deadline expires only an unfinished accepted contract; a ready contract waits.
+- A giver contract fails if its bartender dies while loaded. `Journal` in the API lists open giver contracts; the Faction tab shows them
+  with a detail panel.
 - Definitions are live: a script may register during initialization or an event, and the board includes it on its next offer refresh. Definitions
-  are not saved; accepted/completed contracts are saved in the normal CAMERA `meitou bounty*` keys.
+  are not saved; open and finished (failed/expired included) contracts are saved in the normal CAMERA `meitou bounty*` keys.
 - A definition whose faction/record is missing at board build time does not become an offer. Invalid IDs and duplicate IDs disable the script.
 
 ### Events
@@ -94,14 +100,21 @@ end)
 |---|---|---|
 | `world.start` | first tick of each world | `tick`, `seed` (hex string), `money`, `game_hours` |
 | `world.tick` | every tick, after board events | same world payload |
-| `bounty.accepted` | a contract appears accepted after the script host started | `id`, `title`, `target`, `kind`, `objective`, `required`, `reward`, `progress` |
+| `day.changed` | the clock crosses midnight | `day`, `tick`, `game_hours` |
+| `bounty.accepted` | a contract appears accepted after the script host started | `id`, `title`, `target`, `kind`, `objective`, `required`, `reward`, `progress`, `giver`, `giver_name` |
+| `bounty.ready` | a giver contract's objective is done | same contract payload |
 | `bounty.completed` | a contract changes to completed | same contract payload |
+| `bounty.failed` | a giver contract fails, e.g. the giver dies | same contract payload plus `reason` |
+| `bounty.expired` | an unfinished accepted contract passes its deadline | same contract payload plus `reason` |
 
-Contracts restored from a save at the first tick are recorded without replaying `bounty.accepted`; subsequent accepts and completions fire normally.
+Contracts restored from a save at the first tick are recorded without replaying accept/ready/failed/expired events; subsequent transitions fire normally.
 A contract abandoned and later accepted again is treated as a new accepted contract. Handlers run in registration order on the simulation thread.
+Dynamic dialogue options are C#-only in this slice; Lua can register giver contracts and receive `day.changed`.
 
-The sample [`frontier.bounty.dust_bandit`](../sdk/samples/frontier.bounty.dust_bandit) depends on the sample framework and registers a Dust Bandits
-contract; it uses only base-game data, so it needs no custom assets.
+The sample [`frontier.bounty.dust_bandit`](../sdk/samples/frontier.bounty.dust_bandit) depends on the
+[frontier.bounties](../sdk/samples/frontier.bounties) content pack and its
+[frontier.contracts](../sdk/samples/frontier.contracts) foundation, registers a Dust Bandits contract, declares `events:world`,
+`events:bounty` and `contracts:write`, and logs `day.changed`; it uses only base-game data, so it needs no custom assets.
 
 ## Not implemented
 

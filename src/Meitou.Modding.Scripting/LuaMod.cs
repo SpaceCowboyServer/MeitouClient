@@ -11,7 +11,7 @@ namespace Meitou.Modding.Scripting;
 sealed class LuaMod
 {
     const int MaxLogMessageLength = 4096;
-    static readonly string[] Events = ["world.start", "world.tick", "bounty.accepted", "bounty.completed"];
+    static readonly string[] Events = ["world.start", "world.tick", "day.changed", "bounty.accepted", "bounty.ready", "bounty.completed", "bounty.failed", "bounty.expired"];
 
     readonly Action<string> write;
     readonly GameDatabase data;
@@ -161,7 +161,9 @@ sealed class LuaMod
             TargetRecord: target is BountyTarget.AnimalSpecies or BountyTarget.Spawned ? record : "",
             FactionId: target is BountyTarget.Faction or BountyTarget.Spawned ? factionId : "",
             Required: Int(table, "required", 1),
-            Reward: Int(table, "reward", 0)));
+            Reward: Int(table, "reward", 0),
+            Giver: Text(table, "giver"),
+            DeadlineHours: Int(table, "deadline", 0)));
     }
 
     static string EventPermission(string name) => name.StartsWith("bounty.", StringComparison.Ordinal)

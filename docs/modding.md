@@ -1,8 +1,9 @@
 # Modding foundation
 
 **Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host, the Lua host, the shared typed event bus and
-bounty API, save mod metadata, safe mode, `--validate-mods`, the core contract board (faction, animal, named and spawned targets), the
-SDK/package/local-repository flow and the launcher package install button, with no-asset C# and Lua samples, are implemented (2026-10-27);
+bounty API, bartender dialogue/giver contracts plus the reusable `frontier.contracts` framework, day events, save mod metadata, safe mode, `--validate-mods`, the core contract board
+(faction, animal, named and spawned targets), the SDK/package/local-repository flow and the launcher package install button, with no-asset
+C# and Lua samples, are implemented (2026-10-27);
 applying YAML content to gameplay is planned.** The RE_Kenshi
 decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay ignored. Data-only Kenshi mods load through the normal readers;
 Meitou's own mods use this plan.
@@ -13,22 +14,24 @@ Steam Workshop, a visual editor, a custom general-purpose language.
 
 ## First slice
 
-Three mods prove the foundation:
+Four mods prove the foundation:
 
 | Mod | Type | Proves |
 |---|---|---|
 | `frontier.revolver` | data + assets | item, icon, mesh, sound, load order |
-| `frontier.bounties` | C# plugin | shared bounty API, events, save, core bounty UI |
+| `frontier.contracts` | C# plugin framework | reusable giver/offer/turn-in/day policy and service dependency |
+| `frontier.bounties` | C# content pack | content registration through a framework dependency |
 | `frontier.bounty.dust_bandit` | Lua + plugin dependency | contract content, dependency, events (no custom assets) |
 
-Done when: the launcher resolves the three; the revolver item appears; a bounty is offered, tracked, paid and saved;
+Done when: the launcher resolves the four; the revolver item appears; a bounty is offered, tracked, paid and saved;
 disabling the revolver or the framework fails with a clear message; `--validate-mods` reports missing deps/assets;
 a broken Lua script does not crash the game.
 
 The **core** part of the bounty slice is implemented as `BountyBoardSystem`: faction-group, animal-species, named non-story and fallback spawned-target
-offers, accept/abandon, progress, payment, the faction-tab UI and CAMERA/character save keys. Lua scripts can register faction, animal and spawned
-contracts through `meitou.contracts.register` and observe the board's events. The external C# framework and Lua content samples live in
-[`sdk/samples`](../sdk/samples) and share the typed API and event bus in [modding-api](modding-api.md); YAML-defined contract
+offers, accept/abandon, progress, payment, deadlines/giver-death failure, the faction-tab journal/detail view and CAMERA/character save keys. Lua scripts can register faction, animal and spawned
+contracts through `meitou.contracts.register` and observe accepted/ready/completed/failed/expired board events. The external examples live in
+[`sdk/samples`](../sdk/samples): `frontier.contracts` is the reusable C# framework, `frontier.bounties` is its content pack, and the
+Lua sample depends on the content pack. They share the typed API and event bus in [modding-api](modding-api.md); YAML-defined contract
 targets/rewards and rank/progression remain later work. The asset-dependent `frontier.revolver` sample is blocked on custom
 icon/mesh/sound files.
 
@@ -77,10 +80,11 @@ The engine owns loading; mod code gets handles/services. Shaders, native formats
 
 The API is a facade over the game's systems, used by data, C# and Lua:
 
-- **Implemented:** `IModContext`, `IModEvents`, `IBountyContracts`, `IBountyBoard`, `IModLog`, `IModServices`, `ISaveable`.
+- **Implemented:** `IModContext`, `IModEvents` (including `WorldDayChanged`), `IBountyContracts`, `IBountyBoard`, `IDialogue`,
+  `IModLog`, `IModServices`, `ISaveable`.
 - **Later:** `IWorldQuery`, `ICommands`, `IScheduler`, `IAssets`, `IContent`, `IUi` (core UI/notifications, not mod-drawn
-  panels in v1), `IAudio`, `ILocalization`, dialogue/faction/economy domains.
-- C# mods implement `IMod` and receive `IModContext`; Lua receives the logging, contract and event subset in
+  panels in v1), `IAudio`, `ILocalization`, dialogue conditions and faction/economy domains.
+- C# mods implement `IMod` and receive `IModContext`; Lua receives the logging, contract, world/day and bounty event subset in
   [modding-lua](modding-lua.md). `Meitou.Modding.Api` owns the contracts/DTOs/IDs; `Meitou.Modding.Runtime` owns the adapters. A plugin may
   expose its own service to content packs, with a declared dependency/API version.
 
@@ -134,6 +138,7 @@ Dependency direction: `Api` references the public Data/Simulation types (direct 
 | 6 | Save/lifecycle/diagnostics | **done (core):** saved mod IDs/versions, load mismatch report, safe mode, `--validate-mods` |
 | 7 | SDK/docs/distribution | **done (local):** templates, validate/pack/install, local repository, no-asset samples; Workshop later |
 | 8 | Generic API/events | **done:** shared C#/Lua contracts, event bus, bounty and permission migration; [modding-api](modding-api.md) |
+| 9 | Bartender contracts | **done:** giver batches, dialogue options, turn-in and day refresh; [modding-api](modding-api.md) |
 
 Order: data → C# → Lua. Do not build the distributor or Lua host before the data/API layers.
 

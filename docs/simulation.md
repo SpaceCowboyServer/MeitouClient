@@ -585,9 +585,15 @@ faction squad near the player through `PopulationSystem.SpawnSandboxSquad` (idle
 `SimCommand`s from the faction tab (`PlayerInterface.Faction`); offers, progress and the distance to the nearest target are published in
 `WorldSnapshot.Bounties`. Completed contracts stay completed for that save; abandoning clears the target marker and reoffers. Saved in CAMERA
 (`meitou bounty*`, by faction ID and target marker; offers are derived again), so a save whose faction or target disappears drops only that contract.
-C# plugins and Lua scripts register through the shared `IModContext.Bounties` API into the same catalog the board reads; accepted and
-completed changes are published on `IModEvents` ([modding-api](modding-api.md)). The [frontier.bounties sample](../sdk/samples/frontier.bounties)
-shows the C# side. Engine choices: no delivery/turn-in, flat rewards and no deadline; YAML-defined contracts remain later work.
+C# plugins and Lua scripts register through the shared `IModContext.Bounties` API into the same catalog the board reads; accepted,
+ready, completed, failed and expired changes are published on `IModEvents` ([modding-api](modding-api.md)). A definition with a `Giver`
+is hidden from the Faction tab, is offered through that giver's dialogue, and pays only after the player turns it in; the dialog option
+source and `WorldDayChanged` are the API hooks. A giver contract can carry a `DeadlineHours` limit; an unfinished accepted contract
+expires (a ready one waits for turn-in), and a giver that dies while loaded fails its open contracts. The Faction tab's journal lists
+open giver contracts and opens their target, giver, progress, reward, deadline and state. [frontier.contracts](../sdk/samples/frontier.contracts)
+is the reusable giver framework and [frontier.bounties](../sdk/samples/frontier.bounties) is its Dust Bandit content pack. Engine choices:
+no delivery/turn-in for global contracts (they still pay on the killing blow), flat rewards, and no cancel policy beyond Abandon;
+YAML-defined contracts remain later work.
 
 ## Cages, beds and locks
 
@@ -1457,8 +1463,8 @@ town NPC the population makes again with a new id, so a saved link would dangle)
 that quick), cagings (the carry link is not saved: order Put in Cage again), hunts and their rest timers, release, lock-up and warden rounds (the 30-tick sweep finds
 them again), the unreachable-cage memo (relearned by a failed walk), lock picking (an order), pending crimes
 (seconds long, victim id unsaveable). Spawn bounties are not saved: they are rolled when the population makes an NPC, never for a loaded character.
-The contract board keeps its accepted and completed contracts in CAMERA `meitou bounty*` (kind, objective, faction/target ID and marker, title, required,
-progress, reward, state); offers are rebuilt from the world. A faction or named target the load order no longer has is skipped, leaving the rest of the
+The contract board keeps its accepted, ready, completed, failed and expired contracts in CAMERA `meitou bounty*` (kind, objective, faction/target ID and marker, title,
+detail, giver key/name/character id, required, progress, reward, state, accepted/expires hours and failure reason); offers are rebuilt from the world. A faction or named target the load order no longer has is skipped, leaving the rest of the
 board intact. Named targets also carry `meitou contract target` on their GAMESTATE_CHARACTER, so their marker survives an unload and reload.
 The CAMERA's Meitou-only `meitou mod*` keys list the enabled mods with their versions and trust; loading compares them with the current set, reports
 missing/version-changed/trust-changed mods in the log and notice, and only notes newly enabled ones. Old saves without the list are checked by the

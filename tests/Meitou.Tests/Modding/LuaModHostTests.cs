@@ -1,6 +1,7 @@
 using System.Numerics;
 using Meitou.Data;
 using Meitou.Modding;
+using Meitou.Modding.Api;
 using Meitou.Modding.Runtime;
 using Meitou.Modding.Scripting;
 using Meitou.Simulation;
@@ -62,6 +63,7 @@ public class LuaModHostTests
               title = "Dust Contract",
               required = 1,
               reward = 777,
+              deadline = 24,
             }
             meitou.log.info("registered " .. id)
             """));
@@ -73,7 +75,33 @@ public class LuaModHostTests
         Assert.Equal(BountyTargetKind.Faction, definition.Kind);
         Assert.Equal("20-t", definition.FactionId);
         Assert.Equal(777, definition.Reward);
+        Assert.Equal(24, definition.DeadlineHours);
         Assert.Contains(log, line => line.Contains("registered frontier.dust:bounty/dust", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Lua_receives_ready_failed_and_expired_payloads()
+    {
+        using var root = new ModTempFolder();
+        var (_, api, log) = Load(root, ("frontier.lifecycle", """
+            meitou.events.on("bounty.ready", function(b)
+              meitou.log.info("ready " .. b.id .. " " .. b.giver_name)
+            end)
+            meitou.events.on("bounty.failed", function(b)
+              meitou.log.info("failed " .. b.id .. " " .. b.reason)
+            end)
+            meitou.events.on("bounty.expired", function(b)
+              meitou.log.info("expired " .. b.id .. " " .. b.reason)
+            end)
+            """));
+
+        api.EventBus.Publish(new BountyReady("job:ready", "Ready job", "target", "faction", "kill", 1, 5, "hub", "Barman"));
+        api.EventBus.Publish(new BountyFailed("job:failed", "Failed job", "target", "faction", "kill", 1, 5, "giver_dead", "hub", "Barman"));
+        api.EventBus.Publish(new BountyExpired("job:expired", "Expired job", "target", "faction", "kill", 1, 5, "deadline", "hub", "Barman"));
+
+        Assert.Contains(log, line => line.Contains("ready job:ready Barman", StringComparison.Ordinal));
+        Assert.Contains(log, line => line.Contains("failed job:failed giver_dead", StringComparison.Ordinal));
+        Assert.Contains(log, line => line.Contains("expired job:expired deadline", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -175,6 +203,22 @@ public class LuaModHostTests
         Assert.Contains(log, line => line.Contains("tick 1", StringComparison.Ordinal));
         Assert.Contains(log, line => line.Contains("disabled", StringComparison.Ordinal) && line.Contains("event boom", StringComparison.Ordinal));
         Assert.DoesNotContain(api.Contracts.Definitions, definition => definition.Source == "frontier.bad");
+    }
+
+    [Fact]
+    public void Lua_receives_the_shared_day_change_event()
+    {
+        using var root = new ModTempFolder();
+        var (_, api, log) = Load(root, ("frontier.day", """
+            meitou.events.on("day.changed", function(d) meitou.log.info("day " .. tostring(d.day)) end)
+            """));
+        var set = new StandardSystemSet { Systems = new List<ITickSystem> { new ModRuntimeSystem(api) } };
+        using var world = new SimWorld(new WorldSettings { Seed = 1, Threads = 1, PublishSnapshots = false },
+            new OpenGroundWalkability((_, _) => 0), set.Systems);
+        world.RunTicks(1);
+        world.GameHours = 48;
+        world.RunTicks(1);
+        Assert.Contains(log, line => line.Contains("day 2", StringComparison.Ordinal));
     }
 
     [Fact]

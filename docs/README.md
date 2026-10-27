@@ -27,7 +27,8 @@ used as a naming reference for our 1.0.68 analysis; they are **Observed** until 
 - [metal-effects-parity-plan](metal-effects-parity-plan.md): MEP-I, the remaining Metal effect-parity milestones and ship gates
 - [meitou-ui](meitou-ui.md): UI kit for the Meitou UI mode
 - [modding](modding.md): the modding foundation plan (manifest, dependencies, data/assets, C#/Lua, trust, phases)
-- [modding-api](modding-api.md): shared C#/Lua contracts, event bus, bounty API and permissions
+- [contracts-design](contracts-design.md): Anomaly task-system study and the contract lifecycle/giver backlog
+- [modding-api](modding-api.md): shared C#/Lua contracts, event bus, bounty/giver API, dialogue options and permissions
 - [modding-content](modding-content.md): VFS, asset IDs, YAML content schemas and validation
 - [modding-csharp](modding-csharp.md): the implemented C# plugin API, loading and save-sidecar contract
 - [modding-lua](modding-lua.md): the implemented Lua host, sandbox, contract registration and events

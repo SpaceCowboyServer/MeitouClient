@@ -25,8 +25,12 @@ public sealed class LuaModHost
         this.write = write;
         api.Events.Subscribe<WorldStarted>(started => FireAll("world.start", table => FillWorld(table, started)));
         api.Events.Subscribe<WorldTick>(tick => FireAll("world.tick", table => FillWorld(table, tick)));
+        api.Events.Subscribe<WorldDayChanged>(day => FireAll("day.changed", table => FillDay(table, day)));
         api.Events.Subscribe<BountyAccepted>(accepted => FireAll("bounty.accepted", table => FillBounty(table, accepted)));
+        api.Events.Subscribe<BountyReady>(ready => FireAll("bounty.ready", table => FillBounty(table, ready)));
         api.Events.Subscribe<BountyCompleted>(completed => FireAll("bounty.completed", table => FillBounty(table, completed)));
+        api.Events.Subscribe<BountyFailed>(failed => FireAll("bounty.failed", table => FillBounty(table, failed)));
+        api.Events.Subscribe<BountyExpired>(expired => FireAll("bounty.expired", table => FillBounty(table, expired)));
     }
 
     public int ScriptCount => scripts.Count;
@@ -120,27 +124,46 @@ public sealed class LuaModHost
         table["game_hours"] = world.GameHours;
     }
 
-    static void FillBounty(Table table, BountyAccepted contract)
+    static void FillDay(Table table, WorldDayChanged day)
     {
-        table["id"] = contract.Id;
-        table["title"] = contract.Title;
-        table["target"] = contract.Target;
-        table["kind"] = contract.Kind;
-        table["objective"] = contract.Objective;
-        table["required"] = contract.Required;
-        table["reward"] = contract.Reward;
-        table["progress"] = contract.Progress;
+        table["day"] = day.Day;
+        table["tick"] = day.Tick;
+        table["game_hours"] = day.GameHours;
     }
 
-    static void FillBounty(Table table, BountyCompleted contract)
+    static void FillBounty(Table table, BountyAccepted contract) =>
+        FillBounty(table, contract.Id, contract.Title, contract.Target, contract.Kind, contract.Objective, contract.Required, contract.Reward,
+            contract.Progress, contract.Giver, contract.GiverName);
+
+    static void FillBounty(Table table, BountyReady contract) =>
+        FillBounty(table, contract.Id, contract.Title, contract.Target, contract.Kind, contract.Objective, contract.Required, contract.Reward,
+            contract.Required, contract.Giver, contract.GiverName);
+
+    static void FillBounty(Table table, BountyCompleted contract) =>
+        FillBounty(table, contract.Id, contract.Title, contract.Target, contract.Kind, contract.Objective, contract.Required, contract.Reward,
+            contract.Required, contract.Giver, contract.GiverName);
+
+    static void FillBounty(Table table, BountyFailed contract) =>
+        FillBounty(table, contract.Id, contract.Title, contract.Target, contract.Kind, contract.Objective, contract.Required, contract.Reward,
+            contract.Required, contract.Giver, contract.GiverName, contract.Reason);
+
+    static void FillBounty(Table table, BountyExpired contract) =>
+        FillBounty(table, contract.Id, contract.Title, contract.Target, contract.Kind, contract.Objective, contract.Required, contract.Reward,
+            contract.Required, contract.Giver, contract.GiverName, contract.Reason);
+
+    static void FillBounty(Table table, string id, string title, string target, string kind, string objective, int required, int reward,
+        int progress, string giver, string giverName, string reason = "")
     {
-        table["id"] = contract.Id;
-        table["title"] = contract.Title;
-        table["target"] = contract.Target;
-        table["kind"] = contract.Kind;
-        table["objective"] = contract.Objective;
-        table["required"] = contract.Required;
-        table["reward"] = contract.Reward;
-        table["progress"] = contract.Required;
+        table["id"] = id;
+        table["title"] = title;
+        table["target"] = target;
+        table["kind"] = kind;
+        table["objective"] = objective;
+        table["required"] = required;
+        table["reward"] = reward;
+        table["progress"] = progress;
+        table["giver"] = giver;
+        table["giver_name"] = giverName;
+        if (reason.Length > 0) table["reason"] = reason;
     }
 }

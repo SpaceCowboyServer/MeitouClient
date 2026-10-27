@@ -5,8 +5,14 @@ using Meitou.Data.Gameplay;
 
 namespace Meitou.Simulation.Bounties;
 
-/// <summary>How a contract stands.</summary>
-public enum BountyState : byte { Accepted = 0, Completed = 1 }
+/// <summary>How a contract stands. A giver contract becomes Ready when its target is done and pays only when turned in.</summary>
+public enum BountyState : byte { Accepted = 0, Completed = 1, ReadyToTurnIn = 2, Failed = 3, Expired = 4 }
+
+public static class BountyStates
+{
+    /// <summary>Accepted or ready: the player still owns the job. Terminal states are completed, failed and expired.</summary>
+    public static bool IsOpen(this BountyState state) => state is BountyState.Accepted or BountyState.ReadyToTurnIn;
+}
 
 /// <summary>What a contract targets: a whole faction, one existing character, or the animals of one species.</summary>
 public enum BountyTargetKind : byte { Faction = 0, Character = 1, AnimalSpecies = 2, Spawned = 3 }
@@ -32,10 +38,24 @@ public sealed class BountyContract
     /// <summary>The target faction's position, when known; also the employer/display faction for a character contract.</summary>
     public int Faction { get; init; } = -1;
     public string FactionId { get; init; } = "";
+    /// <summary>The bartender/giver key; empty: the global Faction tab and immediate payment.</summary>
+    public string Giver { get; init; } = "";
+    /// <summary>The giver character's stable id string when the framework supplied it; empty for older saves and global offers.</summary>
+    public string GiverNpc { get; set; } = "";
+    /// <summary>The giver's display name for the journal; the key is the fallback.</summary>
+    public string GiverName { get; set; } = "";
+    /// <summary>The offer detail shown in the journal.</summary>
+    public string Detail { get; init; } = "";
     public required int Required { get; init; }
     public required int Reward { get; init; }
     public int Progress { get; set; }
     public BountyState State { get; set; }
+    /// <summary>Game hours the contract was accepted at; -1 for an old save.</summary>
+    public double AcceptedAtGameHours { get; set; } = -1;
+    /// <summary>Game hours the contract expires at; -1: no deadline.</summary>
+    public double ExpiresAtGameHours { get; set; } = -1;
+    /// <summary>A stable failure reason for <see cref="BountyState.Failed"/>; empty otherwise.</summary>
+    public string FailureReason { get; set; } = "";
     public long CompletedTick { get; set; } = -1;
 
     internal void Hash(ref StateHasher h)
@@ -49,18 +69,25 @@ public sealed class BountyContract
         h.Add((byte)State);
         h.Add(TargetRecord is { } record ? Rng.StableHash(record) : 0UL);
         h.Add(TargetMarker is { } marker ? Rng.StableHash(marker) : 0UL);
+        if (Giver.Length > 0) h.Add(Rng.StableHash(Giver));
     }
 }
 
 /// <summary>One offer in the faction tab.</summary>
-public readonly record struct BountyOfferView(string Id, string Title, string Detail, int Required, int Reward, float Distance);
+public readonly record struct BountyOfferView(string Id, string Title, string Detail, int Required, int Reward, float Distance, int DeadlineHours = 0);
 
-/// <summary>One accepted contract in the faction tab.</summary>
-public readonly record struct BountyContractView(string Id, string Title, int Progress, int Required, int Reward, float Distance);
+/// <summary>One accepted contract in the faction tab or a giver's view.</summary>
+public readonly record struct BountyContractView(
+    string Id, string Title, int Progress, int Required, int Reward, float Distance,
+    bool Ready = false, string Giver = "", string Target = "", string Detail = "", string GiverName = "",
+    BountyState State = BountyState.Accepted, double AcceptedAtGameHours = -1, double ExpiresAtGameHours = -1);
 
 /// <summary>The published bounty board (built in the simulation's serial phase, read by the host).</summary>
 public sealed record BountyBoardView(IReadOnlyList<BountyOfferView> Offers, IReadOnlyList<BountyContractView> Active)
 {
+    /// <summary>Open giver contracts for the journal; <see cref="Active"/> stays the global Faction-tab list.</summary>
+    public IReadOnlyList<BountyContractView> Journal { get; init; } = [];
+
     public static BountyBoardView Empty { get; } = new([], []);
 }
 
@@ -69,6 +96,9 @@ public sealed record AcceptBountyCommand(string ContractId) : SimCommand;
 
 /// <summary>Giving up an accepted contract; the faction or target can be offered again.</summary>
 public sealed record AbandonBountyCommand(string ContractId) : SimCommand;
+
+/// <summary>Turning in a ready giver contract and taking its reward.</summary>
+public sealed record TurnInBountyCommand(string ContractId) : SimCommand;
 
 public sealed record BountySettings
 {
@@ -100,13 +130,15 @@ public sealed record BountySettings
 /// <summary>
 /// The contract board (the first player-facing task loop, docs/simulation.md "Crimes and bounties"). It offers faction-group kills, animal-species culls and a
 /// hunt for one existing non-story bandit; a player killing blow through <see cref="Combat.ICombatDeathSink"/> advances the matching contract, and a specific
-/// character target can also be completed by caging it (the Capture objective). Accepted and completed contracts are saved in the CAMERA record by
+/// character target can also be completed by caging it (the Capture objective). Open and finished contracts are saved in the CAMERA record by
 /// <see cref="Saving.BountyBoardSave"/>; offers are derived again from the world. Named targets carry a stable marker saved on the character
 /// (<see cref="Saving.ContractTargetSave"/>), so an NPC that unloads with its platoon comes back as the same contract target.
 /// </summary>
 public sealed class BountyBoardSystem(PopulationData data, BountySettings? settings = null) : ITickSystem, IStateHashed, Combat.ICombatDeathSink
 {
     readonly List<BountyOffer> offers = [];
+    readonly List<BountyOffer> giverOffers = [];
+    readonly Dictionary<string, IReadOnlyList<BountyOfferView>> publishedGiver = new(StringComparer.Ordinal);
     readonly List<BountyContract> contracts = [];
     readonly BountySettings settings = settings ?? new BountySettings();
     BountyBoardView published = BountyBoardView.Empty;
@@ -123,11 +155,13 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         {
             if (command is AcceptBountyCommand accept) Accept(world, accept.ContractId);
             else if (command is AbandonBountyCommand abandon) Abandon(world, abandon.ContractId);
+            else if (command is TurnInBountyCommand turnIn) TurnIn(world, turnIn.ContractId);
         }
     }
 
     public void SlowWorld(World world)
     {
+        CheckOpenContracts(world);
         if (world.Tick % Math.Max(1, settings.OfferRefreshTicks) == 0) RefreshOffers(world);
         CheckCharacterTargets(world);
         if (world.Tick % Math.Max(1, settings.ViewRefreshTicks) == 0)
@@ -157,7 +191,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             };
             if (!matches) continue;
             contract.Progress++;
-            if (contract.Progress >= contract.Required) Complete(world, contract, attacker);
+            if (contract.Progress >= contract.Required) Finish(world, contract, attacker);
         }
     }
 
@@ -169,9 +203,73 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             var contract = contracts[i];
             if (contract.State != BountyState.Accepted || contract.Kind is not (BountyTargetKind.Character or BountyTargetKind.Spawned) || contract.TargetMarker is not { } marker) continue;
             if (!TryFindMarker(world, marker, out int slot, out var target)) continue;
-            if (contract.Objective == BountyObjective.Capture && target.IsImprisoned) Complete(world, contract, -1);
-            else if (contract.Objective == BountyObjective.Kill && target.Medical is { Dead: true }) Complete(world, contract, -1);
+            if (contract.Objective == BountyObjective.Capture && target.IsImprisoned) Finish(world, contract, -1);
+            else if (contract.Objective == BountyObjective.Kill && target.Medical is { Dead: true }) Finish(world, contract, -1);
         }
+    }
+
+    /// <summary>Checks giver death and accepted-contract deadlines before targets are refreshed.</summary>
+    void CheckOpenContracts(World world)
+    {
+        for (int i = contracts.Count - 1; i >= 0; i--)
+        {
+            var contract = contracts[i];
+            if (!contract.State.IsOpen()) continue;
+            if (contract.GiverNpc.Length > 0 && TryParseCharacterId(contract.GiverNpc, out var giver) &&
+                world.Characters.TryResolveNext(giver, out int slot) && world.Characters.Cold(slot)?.Medical is { Dead: true })
+            {
+                Fail(world, contract, "giver_dead");
+                continue;
+            }
+            // A finished job stays ready for turn-in; only an unfinished one runs out of time.
+            if (contract.State == BountyState.Accepted && contract.ExpiresAtGameHours >= 0 && world.GameHours >= contract.ExpiresAtGameHours)
+                Expire(world, contract);
+        }
+    }
+
+    void Fail(World world, BountyContract contract, string reason)
+    {
+        if (!contract.State.IsOpen()) return;
+        if (contract.TargetMarker is { } marker) ClearMarker(world, marker);
+        contract.State = BountyState.Failed;
+        contract.FailureReason = reason;
+        world.Post($"Bounty failed: {contract.Title}.");
+        Publish(world);
+    }
+
+    void Expire(World world, BountyContract contract)
+    {
+        if (!contract.State.IsOpen()) return;
+        if (contract.TargetMarker is { } marker) ClearMarker(world, marker);
+        contract.State = BountyState.Expired;
+        contract.FailureReason = "deadline";
+        world.Post($"Bounty expired: {contract.Title}.");
+        Publish(world);
+    }
+
+    static bool TryParseCharacterId(string text, out CharacterId id)
+    {
+        id = CharacterId.None;
+        int dot = text.IndexOf('.');
+        if (dot <= 0 || dot == text.Length - 1) return false;
+        if (!int.TryParse(text.AsSpan(0, dot), out int slot) || !int.TryParse(text.AsSpan(dot + 1), out int generation)) return false;
+        id = new CharacterId(slot, generation);
+        return true;
+    }
+
+    void Finish(World world, BountyContract contract, int attacker)
+    {
+        if (contract.State != BountyState.Accepted) return;
+        if (contract.Giver.Length > 0) MarkReady(world, contract);
+        else Complete(world, contract, attacker);
+    }
+
+    void MarkReady(World world, BountyContract contract)
+    {
+        contract.Progress = contract.Required;
+        contract.State = BountyState.ReadyToTurnIn;
+        world.Post($"Bounty ready to turn in: {contract.Title}.");
+        Publish(world);
     }
 
     void Complete(World world, BountyContract contract, int attacker)
@@ -187,11 +285,21 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         Publish(world);
     }
 
-    void Accept(World world, string id)
+    /// <summary>Turns in a ready giver contract and pays it. The public game-side API calls this from a dialogue choice.</summary>
+    public bool TurnIn(World world, string id)
+    {
+        if (contracts.FirstOrDefault(c => c.Id == id && c.State == BountyState.ReadyToTurnIn) is not { } contract) return false;
+        Complete(world, contract, -1);
+        return true;
+    }
+
+    void Accept(World world, string id, string giverNpc = "", string giverName = "")
     {
         int at = offers.FindIndex(o => o.Id == id);
+        bool giver = false;
+        if (at < 0) { at = giverOffers.FindIndex(o => o.Id == id); giver = at >= 0; }
         if (at < 0 || contracts.Exists(c => c.Id == id)) return;
-        var offer = offers[at];
+        var offer = giver ? giverOffers[at] : offers[at];
         string? spawnedName = null;
         if (offer.Kind == BountyTargetKind.Character)
         {
@@ -210,7 +318,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             SetMarker(target, marker);
             spawnedName = target.Name;
         }
-        offers.RemoveAt(at);
+        if (giver) giverOffers.RemoveAt(at); else offers.RemoveAt(at);
         var contract = new BountyContract
         {
             Id = offer.Id,
@@ -222,8 +330,14 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             TargetMarker = offer.TargetMarker,
             Faction = offer.Faction,
             FactionId = offer.FactionId,
+            Giver = offer.Giver,
+            GiverNpc = giver ? giverNpc : "",
+            GiverName = giver ? (string.IsNullOrWhiteSpace(giverName) ? offer.Giver : giverName) : "",
+            Detail = offer.Detail,
             Required = offer.Required,
             Reward = offer.Reward,
+            AcceptedAtGameHours = world.GameHours,
+            ExpiresAtGameHours = offer.DeadlineHours > 0 ? world.GameHours + offer.DeadlineHours : -1,
         };
         if (spawnedName is { Length: > 0 })
         {
@@ -246,15 +360,57 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         Publish(world);
     }
 
+    /// <summary>Accepts an offer by ID from the interface; returns whether it found one.</summary>
+    /// <param name="giverNpc">The giver character's stable id string, when a framework accepts a giver offer.</param>
+    /// <param name="giverName">The giver's display name for the journal.</param>
+    public bool TryAccept(World world, string id, string giverNpc = "", string giverName = "")
+    {
+        if (!offers.Exists(o => o.Id == id) && !giverOffers.Exists(o => o.Id == id)) return false;
+        Accept(world, id, giverNpc, giverName);
+        return contracts.Exists(c => c.Id == id);
+    }
+
+    public bool TryAbandon(World world, string id)
+    {
+        if (contracts.FirstOrDefault(c => c.Id == id && c.State is BountyState.Accepted or BountyState.ReadyToTurnIn) is not { } contract) return false;
+        int at = contracts.IndexOf(contract);
+        if (contract.TargetMarker is { } marker) ClearMarker(world, marker);
+        contracts.RemoveAt(at);
+        world.Post($"Bounty abandoned: {contract.Title}");
+        Publish(world);
+        return true;
+    }
+
+    /// <summary>Rebuilds offers after mod definitions changed; callable while paused.</summary>
+    public void Refresh(World world)
+    {
+        RefreshOffers(world);
+        Publish(world);
+    }
+
+    /// <summary>One giver's current offers, in the order the board built them.</summary>
+    public IReadOnlyList<BountyOfferView> PublishedForGiver(string giver) =>
+        publishedGiver.GetValueOrDefault(giver, []);
+
     void RefreshOffers(World world)
     {
         var players = PlayerPositions(world);
         offers.RemoveAll(o => float.IsPositiveInfinity(OfferDistance(world, o, players)));
-        if (settings.Contracts is { } catalog)
+        if (settings.Contracts is not { } catalog) giverOffers.Clear();
+        else
         {
-            foreach (var definition in catalog.Definitions)
+            var definitions = catalog.Definitions;
+            var giverIds = definitions.Where(definition => definition.Giver.Length > 0).Select(definition => definition.Id).ToHashSet(StringComparer.Ordinal);
+            giverOffers.RemoveAll(o => !giverIds.Contains(o.Id) && !contracts.Exists(c => c.Id == o.Id));
+            foreach (var definition in definitions)
             {
-                if (offers.Count >= settings.MaxOffers) break;
+                if (definition.Giver.Length > 0)
+                {
+                    if (giverOffers.Exists(o => o.Id == definition.Id) || contracts.Exists(c => c.Id == definition.Id)) continue;
+                    if (CustomOffer(definition, world.Seed) is { } giverOffer) giverOffers.Add(giverOffer);
+                    continue;
+                }
+                if (offers.Count >= settings.MaxOffers) continue;
                 if (offers.Exists(o => o.Id == definition.Id) || contracts.Exists(c => c.Id == definition.Id)) continue;
                 if (CustomOffer(definition, world.Seed) is not { } offer || float.IsPositiveInfinity(OfferDistance(world, offer, players))) continue;
                 offers.Add(offer);
@@ -271,7 +427,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             {
                 var faction = data.Factions[f];
                 if (faction.FundamentalType != FundamentalType.Bandit || faction.NotReal) continue;
-                if (offers.Exists(o => o.Faction == f) || contracts.Exists(c => c.Faction == f)) continue;
+                if (offers.Exists(o => o.Faction == f) || contracts.Exists(c => c.Giver.Length == 0 && c.Faction == f)) continue;
                 float distance = NearestFaction(world, f, players);
                 if (!float.IsPositiveInfinity(distance) && distance <= settings.OfferRange) candidates.Add((f, distance));
             }
@@ -288,9 +444,9 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
     }
 
     bool HasKind(BountyTargetKind kind) =>
-        offers.Exists(o => o.Kind == kind) || contracts.Exists(c => c.Kind == kind && c.State == BountyState.Accepted);
+        offers.Exists(o => o.Kind == kind) || contracts.Exists(c => c.Giver.Length == 0 && c.Kind == kind && c.State != BountyState.Completed);
 
-    bool HasContract(BountyTargetKind kind) => contracts.Exists(c => c.Kind == kind);
+    bool HasContract(BountyTargetKind kind) => contracts.Exists(c => c.Giver.Length == 0 && c.Kind == kind);
 
     BountyOffer FactionOffer(int faction) => new(
         data.Factions[faction].Id, BountyTargetKind.Faction, BountyObjective.Kill, data.Factions[faction].Name, data.Factions[faction].Name,
@@ -325,14 +481,14 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
                 int faction = data.FactionIndex(definition.FactionId);
                 if (faction < 0) return null;
                 return new(definition.Id, definition.Kind, definition.Objective, definition.Title, data.Factions[faction].Name, detail,
-                    null, null, CharacterId.None, faction, data.Factions[faction].Id, definition.Required, definition.Reward);
+                    null, null, CharacterId.None, faction, data.Factions[faction].Id, definition.Required, definition.Reward, definition.Giver, definition.DeadlineHours);
             }
             case BountyTargetKind.AnimalSpecies:
             {
                 if (data.Db.Find(definition.TargetRecord) is not { Type: FcsRecordType.ANIMAL_CHARACTER } record || UniqueCharacters.IsUnique(record))
                     return null;
                 return new(definition.Id, definition.Kind, definition.Objective, definition.Title, record.Name, detail,
-                    definition.TargetRecord, null, CharacterId.None, -1, "", definition.Required, definition.Reward);
+                    definition.TargetRecord, null, CharacterId.None, -1, "", definition.Required, definition.Reward, definition.Giver, definition.DeadlineHours);
             }
             case BountyTargetKind.Spawned:
             {
@@ -340,7 +496,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
                     UniqueCharacters.IsUnique(record) || data.FactionIndex(definition.FactionId) is not (>= 0 and var faction))
                     return null;
                 return new(definition.Id, definition.Kind, definition.Objective, definition.Title, data.Factions[faction].Name, detail,
-                    definition.TargetRecord, $"spawn:{seed}:{definition.Id}", CharacterId.None, faction, data.Factions[faction].Id, definition.Required, definition.Reward);
+                    definition.TargetRecord, $"spawn:{seed}:{definition.Id}", CharacterId.None, faction, data.Factions[faction].Id, definition.Required, definition.Reward, definition.Giver, definition.DeadlineHours);
             }
             default:
                 return null;
@@ -387,12 +543,23 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         var players = PlayerPositions(world);
         var viewOffers = new List<BountyOfferView>(offers.Count);
         foreach (var offer in offers)
-            viewOffers.Add(new BountyOfferView(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, OfferDistance(world, offer, players)));
+            viewOffers.Add(new BountyOfferView(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, OfferDistance(world, offer, players), offer.DeadlineHours));
         var active = new List<BountyContractView>();
+        var journal = new List<BountyContractView>();
         foreach (var contract in contracts)
-            if (contract.State == BountyState.Accepted)
-                active.Add(new BountyContractView(contract.Id, contract.Title, contract.Progress, contract.Required, contract.Reward, ContractDistance(world, contract, players)));
-        published = new BountyBoardView(viewOffers, active);
+        {
+            if (!contract.State.IsOpen()) continue;
+            var view = new BountyContractView(contract.Id, contract.Title, contract.Progress, contract.Required, contract.Reward,
+                ContractDistance(world, contract, players), contract.State == BountyState.ReadyToTurnIn, contract.Giver,
+                contract.TargetName, contract.Detail, contract.GiverName, contract.State, contract.AcceptedAtGameHours, contract.ExpiresAtGameHours);
+            if (contract.Giver.Length == 0) active.Add(view);
+            else journal.Add(view);
+        }
+        published = new BountyBoardView(viewOffers, active) { Journal = journal };
+        publishedGiver.Clear();
+        foreach (var group in giverOffers.GroupBy(offer => offer.Giver, StringComparer.Ordinal))
+            publishedGiver[group.Key] = [.. group.Select(offer => new BountyOfferView(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward,
+                OfferDistance(world, offer, players), offer.DeadlineHours))];
     }
 
     float OfferDistance(World world, BountyOffer offer, List<Vector3> players) => offer.Kind switch
@@ -580,7 +747,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
     }
 
     sealed class BountyOffer(string id, BountyTargetKind kind, BountyObjective objective, string title, string targetName, string detail, string? targetRecord, string? targetMarker,
-        CharacterId target, int faction, string factionId, int required, int reward)
+        CharacterId target, int faction, string factionId, int required, int reward, string giver = "", int deadlineHours = 0)
     {
         public string Id { get; } = id;
         public BountyTargetKind Kind { get; } = kind;
@@ -595,11 +762,14 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         public string FactionId { get; } = factionId;
         public int Required { get; } = required;
         public int Reward { get; } = reward;
+        public string Giver { get; } = giver;
+        public int DeadlineHours { get; } = deadlineHours;
     }
 
     /// <summary>Restores one saved contract; called by <see cref="Saving.BountyBoardSave"/> on load.</summary>
     public void Restore(string id, BountyTargetKind kind, BountyObjective objective, string title, string targetName, string? targetRecord, string? targetMarker,
-        int faction, int required, int progress, int reward, bool completed)
+        int faction, int required, int progress, int reward, BountyState state, string giver = "", string detail = "", string giverName = "",
+        string giverNpc = "", double acceptedAtGameHours = -1, double expiresAtGameHours = -1, string failureReason = "")
     {
         if (contracts.Exists(c => c.Id == id)) return;
         required = Math.Max(1, required);
@@ -614,11 +784,18 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             TargetMarker = targetMarker,
             Faction = (uint)faction < (uint)data.Factions.Count ? faction : -1,
             FactionId = (uint)faction < (uint)data.Factions.Count ? data.Factions[faction].Id : "",
+            Giver = giver,
+            GiverName = giverName,
+            GiverNpc = giverNpc,
+            Detail = detail,
             Required = required,
             Reward = Math.Max(0, reward),
             Progress = Math.Clamp(progress, 0, required),
-            State = completed ? BountyState.Completed : BountyState.Accepted,
-            CompletedTick = completed ? 0 : -1,
+            State = state,
+            AcceptedAtGameHours = acceptedAtGameHours,
+            ExpiresAtGameHours = expiresAtGameHours,
+            FailureReason = failureReason,
+            CompletedTick = state == BountyState.Completed ? 0 : -1,
         });
     }
 

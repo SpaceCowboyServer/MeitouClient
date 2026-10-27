@@ -1,6 +1,8 @@
 using Meitou.Modding.Api;
+using Meitou.Simulation;
 using Meitou.Simulation.Bounties;
 using ApiBountyContractView = Meitou.Modding.Api.BountyContractView;
+using SimBountyContractView = Meitou.Simulation.Bounties.BountyContractView;
 
 namespace Meitou.Modding.Runtime;
 
@@ -12,6 +14,7 @@ public sealed class BountyApi : IBountyBoard
 {
     readonly BountyContractCatalog catalog;
     BountyBoardSystem? board;
+    World? world;
 
     public BountyApi(BountyContractCatalog catalog)
     {
@@ -26,7 +29,7 @@ public sealed class BountyApi : IBountyBoard
             var view = board?.Published;
             if (view is null) return [];
             return [.. view.Offers.Select(offer => new BountyOffer(
-                offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, offer.Distance))];
+                offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, offer.Distance, offer.DeadlineHours))];
         }
     }
 
@@ -36,13 +39,66 @@ public sealed class BountyApi : IBountyBoard
         {
             var view = board?.Published;
             if (view is null) return [];
-            return [.. view.Active.Select(contract => new ApiBountyContractView(
-                contract.Id, contract.Title, contract.Progress, contract.Required, contract.Reward, contract.Distance))];
+            return [.. view.Active.Select(Map)];
         }
+    }
+
+    public IReadOnlyList<BountyOffer> OffersFor(string giver)
+    {
+        if (string.IsNullOrEmpty(giver)) return [];
+        var view = board?.PublishedForGiver(giver) ?? [];
+        return [.. view.Select(offer => new BountyOffer(offer.Id, offer.Title, offer.Detail, offer.Required, offer.Reward, offer.Distance, offer.DeadlineHours))];
+    }
+
+    public IReadOnlyList<ApiBountyContractView> Journal
+    {
+        get
+        {
+            var view = board?.Published;
+            return view is null ? [] : [.. view.Journal.Select(Map)];
+        }
+    }
+
+    public IReadOnlyList<ApiBountyContractView> ActiveFor(string giver) =>
+        string.IsNullOrEmpty(giver) || board is null ? [] : [.. board.Contracts.Where(contract => contract.Giver == giver && contract.State.IsOpen())
+            .Select(Map)];
+
+    public IReadOnlyList<ApiBountyContractView> CompletedFor(string giver) =>
+        string.IsNullOrEmpty(giver) || board is null ? [] : [.. board.Contracts.Where(contract => contract.Giver == giver && contract.State == BountyState.Completed)
+            .Select(Map)];
+
+    public bool Accept(string offerId, string giverNpc = "", string giverName = "") =>
+        board is not null && world is not null && board.TryAccept(world, offerId, giverNpc, giverName);
+    public bool TurnIn(string contractId) => board is not null && world is not null && board.TurnIn(world, contractId);
+    public bool Abandon(string contractId) => board is not null && world is not null && board.TryAbandon(world, contractId);
+
+    public void Refresh()
+    {
+        if (board is not null && world is not null) board.Refresh(world);
     }
 
     /// <summary>Points the board view at the world's board; a new world replaces it.</summary>
     public void Attach(BountyBoardSystem? value) => board = value;
+
+    public void AttachWorld(World? value) => world = value;
+
+    static ApiBountyContractView Map(SimBountyContractView contract) =>
+        new(contract.Id, contract.Title, contract.Progress, contract.Required, contract.Reward, contract.Distance, contract.Ready, contract.Giver,
+            contract.Target, contract.Detail, contract.GiverName, Status(contract.State), contract.AcceptedAtGameHours, contract.ExpiresAtGameHours);
+
+    static ApiBountyContractView Map(BountyContract contract) =>
+        new(contract.Id, contract.Title, contract.Progress, contract.Required, contract.Reward, 0,
+            contract.State == BountyState.ReadyToTurnIn, contract.Giver, contract.TargetName, contract.Detail, contract.GiverName,
+            Status(contract.State), contract.AcceptedAtGameHours, contract.ExpiresAtGameHours);
+
+    static BountyStatus Status(BountyState state) => state switch
+    {
+        BountyState.ReadyToTurnIn => BountyStatus.ReadyToTurnIn,
+        BountyState.Completed => BountyStatus.Completed,
+        BountyState.Failed => BountyStatus.Failed,
+        BountyState.Expired => BountyStatus.Expired,
+        _ => BountyStatus.Accepted,
+    };
 
     /// <summary>Registers one mod definition and returns its canonical ID.</summary>
     public string Register(string source, BountyDefinition definition)
@@ -80,9 +136,13 @@ public sealed class BountyApi : IBountyBoard
             FactionId = definition.FactionId,
             Required = definition.Required,
             Reward = definition.Reward,
+            Giver = definition.Giver ?? "",
+            DeadlineHours = definition.DeadlineHours,
         });
         return id;
     }
+
+    public bool Remove(string source, string id) => catalog.Remove(source, id);
 
     public int RemoveSource(string source) => catalog.RemoveSource(source);
 
@@ -102,4 +162,5 @@ public sealed class BountyApi : IBountyBoard
 sealed class ScopedBountyContracts(BountyApi api, string modId) : IBountyContracts
 {
     public string Register(BountyDefinition definition) => api.Register(modId, definition);
+    public bool Remove(string id) => api.Remove(modId, id);
 }

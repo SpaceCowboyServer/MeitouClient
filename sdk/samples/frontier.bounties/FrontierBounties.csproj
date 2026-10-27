@@ -6,9 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\Meitou.Core\Meitou.Core.csproj" />
-    <ProjectReference Include="..\..\..\src\Meitou.Data\Meitou.Data.csproj" />
-    <ProjectReference Include="..\..\..\src\Meitou.Simulation\Meitou.Simulation.csproj" />
     <ProjectReference Include="..\..\..\src\Meitou.Modding.Api\Meitou.Modding.Api.csproj" />
   </ItemGroup>
   <Target Name="CopyModAssembly" AfterTargets="Build">

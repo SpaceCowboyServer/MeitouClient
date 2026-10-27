@@ -841,7 +841,8 @@ unless marked; Meitou: `PlayerInterface.Faction.cs`.
 - Meitou: the name box takes typing; accepting it (Enter) or losing the key focus sends `RenameFactionCommand`, which takes a name no other faction of the data has and posts "This faction name already exists" otherwise (the original's message box and the empty-name rule are not built / **Unknown**; the 64-character cap is an engine choice). The name is `PlayerState.FactionName` (null = the data's "Nameless"), saved as the CAMERA `pfaction name`, the player platoons' faction name and read back on load when it differs from the data's; the GAMESTATE_FACTION record's own name is not rewritten. The lines for every faction but the player's, the `not real` ones and the template (engine
   choice for the unknown filters), sorted ignoring case, rebuilt each frame, line height from the layout's 0.0222 of the screen. Meitou fills
   `---Active Contracts---` with accepted faction, animal and named-target contracts and adds an `---Available Contracts---` section with Accept/Abandon
-  buttons; `---Upcoming Events---` still has no rows (no event list is modelled).
+  buttons. Open giver contracts are listed in a `---Giver Contracts---` journal with a Details button; Details shows target, giver, progress, reward,
+  deadline and status, with Abandon and Close. `---Upcoming Events---` still has no rows (no event list is modelled).
 
 ### Squads tab
 

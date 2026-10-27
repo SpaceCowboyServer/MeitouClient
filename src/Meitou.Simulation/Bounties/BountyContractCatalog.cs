@@ -17,13 +17,17 @@ public sealed record BountyContractDefinition
     public string FactionId { get; init; } = "";
     public int Required { get; init; } = 1;
     public int Reward { get; init; }
+    /// <summary>A bartender/giver key; empty offers the contract on the global Faction tab.</summary>
+    public string Giver { get; init; } = "";
+    /// <summary>Game hours before an accepted offer expires; 0: no deadline.</summary>
+    public int DeadlineHours { get; init; }
     /// <summary>The mod or script that registered the definition; set by <see cref="BountyContractCatalog"/>.</summary>
     public string Source { get; init; } = "";
 }
 
 /// <summary>
 /// The live registry of contract definitions contributed by mods. It is passed to <see cref="BountyBoardSystem"/> and read on every offer refresh, so a
-/// script may register content during initialization or later. Definitions are not saved: the board's accepted/completed contracts are.
+/// script may register content during initialization or later. Definitions are not saved: the board's accepted and finished contracts are.
 /// </summary>
 public sealed class BountyContractCatalog
 {
@@ -33,6 +37,7 @@ public sealed class BountyContractCatalog
     const int MaxDetailLength = 300;
     const int MaxRequired = 10000;
     const int MaxReward = 100_000_000;
+    const int MaxDeadlineHours = 10_000;
 
     readonly object gate = new();
     readonly Dictionary<string, BountyContractDefinition> definitions = new(StringComparer.Ordinal);
@@ -65,6 +70,13 @@ public sealed class BountyContractCatalog
         }
     }
 
+    /// <summary>Removes one definition owned by <paramref name="source"/>; false when it is missing or owned by another mod.</summary>
+    public bool Remove(string source, string id)
+    {
+        lock (gate)
+            return definitions.TryGetValue(id, out var definition) && definition.Source == source && definitions.Remove(id);
+    }
+
     /// <summary>Removes every definition a mod registered; returns how many were removed.</summary>
     public int RemoveSource(string source)
     {
@@ -88,6 +100,8 @@ public sealed class BountyContractCatalog
             throw new ArgumentException($"A contract needs between 1 and {MaxRequired} required actions.", nameof(definition));
         if (definition.Reward is < 0 or > MaxReward)
             throw new ArgumentException($"A contract reward must be between 0 and {MaxReward}.", nameof(definition));
+        if (definition.DeadlineHours is < 0 or > MaxDeadlineHours)
+            throw new ArgumentException($"A contract deadline must be between 0 and {MaxDeadlineHours} hours; 0 means no deadline.", nameof(definition));
         if (!Enum.IsDefined(definition.Kind) || !Enum.IsDefined(definition.Objective))
             throw new ArgumentException("A contract has an unknown target kind or objective.", nameof(definition));
         if (definition.Kind == BountyTargetKind.Character)

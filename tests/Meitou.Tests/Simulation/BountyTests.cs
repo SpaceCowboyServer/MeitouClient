@@ -67,6 +67,165 @@ public class BountyTests
     }
 
     [Fact]
+    public void A_giver_contract_is_hidden_from_the_faction_tab_and_pays_only_on_turn_in()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/hub",
+            Kind = BountyTargetKind.Faction,
+            Objective = BountyObjective.Kill,
+            Title = "Hub Dust",
+            FactionId = "bandits",
+            Required = 1,
+            Reward = 777,
+            Giver = "hub",
+        });
+        using var rig = new Rig(new BountySettings
+        {
+            Contracts = catalog,
+            OfferRefreshTicks = 1,
+            ViewRefreshTicks = 1,
+            OfferSpecific = false,
+            OfferAnimals = false,
+            OfferSpawned = false,
+        });
+        var player = rig.Player(Vector2.Zero);
+        var target = rig.Bandit(new Vector2(100, 0));
+        rig.Run(1);
+
+        Assert.DoesNotContain(rig.Board.Published.Offers, offer => offer.Id == "frontier.test:bounty/hub");
+        var offer = Assert.Single(rig.Board.PublishedForGiver("hub"));
+        Assert.Equal("Hub Dust", offer.Title);
+        Assert.True(rig.Board.TryAccept(rig.World, offer.Id));
+        var contract = Assert.Single(rig.Board.Contracts);
+        Assert.Equal("hub", contract.Giver);
+        Assert.Equal(BountyState.Accepted, contract.State);
+        Assert.Empty(rig.Board.Published.Active);
+
+        rig.Board.Died(rig.World, player.Slot, target.Slot);
+        Assert.Equal(BountyState.ReadyToTurnIn, contract.State);
+        Assert.Equal(0, rig.World.Player.Money);
+        var builder = new SaveBuilder();
+        BountyBoardSave.Write(builder.Game.Camera, rig.World, rig.Data);
+        using (var restored = new Rig(new BountySettings
+        {
+            Contracts = catalog,
+            OfferRefreshTicks = 1,
+            ViewRefreshTicks = 1,
+            OfferSpecific = false,
+            OfferAnimals = false,
+            OfferSpawned = false,
+        }))
+        {
+            BountyBoardSave.Read(builder.Game.Camera, restored.World, restored.Data);
+            var saved = Assert.Single(restored.Board.Contracts);
+            Assert.Equal(BountyState.ReadyToTurnIn, saved.State);
+            Assert.Equal("hub", saved.Giver);
+        }
+        Assert.True(rig.Board.TurnIn(rig.World, contract.Id));
+        Assert.Equal(BountyState.Completed, contract.State);
+        Assert.Equal(777, rig.World.Player.Money);
+        Assert.Empty(rig.Board.PublishedForGiver("hub"));
+    }
+
+    [Fact]
+    public void A_giver_contract_expires_without_paying()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/expiring",
+            Kind = BountyTargetKind.Faction,
+            Objective = BountyObjective.Kill,
+            Title = "Expiring job",
+            FactionId = "bandits",
+            Required = 1,
+            Reward = 900,
+            Giver = "hub",
+            DeadlineHours = 1,
+        });
+        using var rig = new Rig(new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        _ = rig.Player(Vector2.Zero);
+        var giver = rig.NamedBandit(new Vector2(20, 0), "Barman");
+        rig.Run(1);
+
+        var offer = Assert.Single(rig.Board.PublishedForGiver("hub"));
+        Assert.Equal(1, offer.DeadlineHours);
+        Assert.True(rig.Board.TryAccept(rig.World, offer.Id, giver.ToString(), "Barman"));
+        var contract = Assert.Single(rig.Board.Contracts);
+        Assert.Equal("Barman", contract.GiverName);
+        Assert.Equal(giver.ToString(), contract.GiverNpc);
+        Assert.Equal(BountyState.Accepted, contract.State);
+        Assert.Equal(1, contract.ExpiresAtGameHours - contract.AcceptedAtGameHours, 3);
+        Assert.Single(rig.Board.Published.Journal);
+
+        rig.World.GameHours = 39;
+        rig.Run(1);
+
+        Assert.Equal(BountyState.Expired, contract.State);
+        Assert.Equal("deadline", contract.FailureReason);
+        Assert.Equal(0, rig.World.Player.Money);
+        Assert.Empty(rig.Board.Published.Journal);
+        Assert.Contains(rig.World.TakeMessages(), message => message.Contains("Bounty expired: Expiring job", StringComparison.Ordinal));
+
+        var builder = new SaveBuilder();
+        BountyBoardSave.Write(builder.Game.Camera, rig.World, rig.Data);
+        using var restored = new Rig(new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        BountyBoardSave.Read(builder.Game.Camera, restored.World, restored.Data);
+        var saved = Assert.Single(restored.Board.Contracts);
+        Assert.Equal(BountyState.Expired, saved.State);
+        Assert.Equal("deadline", saved.FailureReason);
+        Assert.Equal("Barman", saved.GiverName);
+        Assert.Equal(giver.ToString(), saved.GiverNpc);
+        Assert.Equal(1, saved.ExpiresAtGameHours - saved.AcceptedAtGameHours, 3);
+    }
+
+    [Fact]
+    public void A_giver_contract_fails_when_its_giver_dies()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/giver-death",
+            Kind = BountyTargetKind.Faction,
+            Objective = BountyObjective.Kill,
+            Title = "Dead giver job",
+            FactionId = "bandits",
+            Required = 1,
+            Reward = 800,
+            Giver = "hub",
+        });
+        using var rig = new Rig(new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        _ = rig.Player(Vector2.Zero);
+        var giver = rig.NamedBandit(new Vector2(20, 0), "Barman");
+        rig.Run(1);
+
+        var offer = Assert.Single(rig.Board.PublishedForGiver("hub"));
+        Assert.True(rig.Board.TryAccept(rig.World, offer.Id, giver.ToString(), "Barman"));
+        var contract = Assert.Single(rig.Board.Contracts);
+        rig.Cold(giver).Medical!.Butcher();
+        rig.Run(1);
+
+        Assert.Equal(BountyState.Failed, contract.State);
+        Assert.Equal("giver_dead", contract.FailureReason);
+        Assert.Equal(0, rig.World.Player.Money);
+        Assert.Empty(rig.Board.Published.Journal);
+    }
+
+    [Fact]
     public void Offers_a_nearby_bandit_faction_and_accept_abandon_round_trip()
     {
         using var rig = new Rig();
