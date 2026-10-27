@@ -61,7 +61,7 @@ sealed partial class PlayerInterface
         if (talk.Page)
         {
             b.Positions["NpcPanel"] = new UiRect(Width * 0.20f, Height * 0.24f, Width * 0.60f, Height * 0.40f);
-            b.Positions["PlayerPanel"] = new UiRect(Width * 0.28f, Height * 0.72f, Width * 0.44f, Height * 0.20f);
+            b.Positions["PlayerPanel"] = new UiRect(Width * 0.28f, Height * 0.72f, Width * 0.44f, Height * 0.16f);
         }
         b.Text["NpcName"] = talk.SpeakerName;
         b.Text["PlayerName"] = talk.PlayerName;
