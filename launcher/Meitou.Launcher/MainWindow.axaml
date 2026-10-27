@@ -176,7 +176,7 @@
         </DockPanel>
 
         <!-- Mods -->
-        <DockPanel x:Name="ModsPage" IsVisible="False">
+        <DockPanel x:Name="ModsPage" IsVisible="False" DragDrop.AllowDrop="True">
           <Border DockPanel.Dock="Top" Classes="header" Margin="0,0,0,10">
             <DockPanel>
               <TextBlock x:Name="ModCount" DockPanel.Dock="Right" Classes="aside" />
@@ -193,6 +193,8 @@
               <Button Content="Select all" Click="SelectAll_Click" />
               <Button Content="Select none" Click="SelectNone_Click" />
               <Button Content="Refresh" Click="RefreshMods_Click" />
+              <Button Content="Install mod..." Click="InstallMod_Click"
+                      ToolTip.Tip="Install one or more .meitoumod packages from Downloads" />
             </StackPanel>
           </DockPanel>
           <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
@@ -209,7 +211,8 @@
           <TextBlock x:Name="ModDetails" DockPanel.Dock="Bottom" Classes="desc" Margin="0,8,0,0" MaxLines="2" TextTrimming="CharacterEllipsis" />
           <Panel>
           <TextBlock x:Name="ModsEmpty" Classes="empty" IsVisible="False" />
-          <ListBox x:Name="ModListBox" SelectionChanged="ModListBox_SelectionChanged" KeyDown="ModListBox_KeyDown">
+          <ListBox x:Name="ModListBox" SelectionChanged="ModListBox_SelectionChanged" KeyDown="ModListBox_KeyDown"
+                   DragDrop.AllowDrop="True">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="l:ModRow">
                 <DockPanel>

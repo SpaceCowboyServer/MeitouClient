@@ -131,7 +131,7 @@ static class ModCommand
                     $"Kenshi not found; set {GameInstall.EnvironmentVariable}, create {GameInstall.LocalConfigFile}, or pass --mods <dir>.");
                 mods = install.ModsDirectory;
             }
-            string target = ModPackage.Install(package, mods, force);
+            string target = ModPackageInstaller.Install(package, mods, force);
             Console.WriteLine($"Installed {package} -> {target}");
             return 0;
         }

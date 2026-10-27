@@ -44,6 +44,8 @@ public sealed partial class MainWindow : Window
         this.config = config;
         updater = new LauncherUpdater(releases, config.IncludePrereleases);
         InitializeComponent();
+        ModsPage.AddHandler(DragDrop.DragOverEvent, Mods_DragOver, RoutingStrategies.Bubble, handledEventsToo: true);
+        ModsPage.AddHandler(DragDrop.DropEvent, Mods_Drop, RoutingStrategies.Bubble, handledEventsToo: true);
         LauncherText.Use(StartLanguage(found), found);
         PopulateLanguageOptions(found);
         LauncherText.TranslateTree(this, originalUiText);
@@ -451,7 +453,7 @@ public sealed partial class MainWindow : Window
         ShowModCount();
         ModsEmpty.IsVisible = mods.Count == 0;
         ModsEmpty.Text = install is null ? "Set the Kenshi folder in Settings to list its mods."
-            : "No mods found in Kenshi's mods folder or among its Steam workshop items.";
+            : "No mods found in Kenshi's mods folder or among its Steam workshop items. Install a .meitoumod package or drop it here.";
     }
 
     void ShowModCount() => ModCount.Text = mods.Count == 0 ? "No mods found" : $"{mods.Count(m => m.Enabled)} of {mods.Count} enabled";
@@ -474,6 +476,90 @@ public sealed partial class MainWindow : Window
     void SaveMods_Click(object? sender, RoutedEventArgs e)
     {
         if (SaveMods()) Status($"Mod list saved: {mods.Count(m => m.Enabled)} enabled.");
+    }
+
+    async void InstallMod_Click(object? sender, RoutedEventArgs e)
+    {
+        if (install is null) { Status("Set the Kenshi folder first (Settings)."); return; }
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Install Meitou mods",
+            AllowMultiple = true,
+            FileTypeFilter = [new FilePickerFileType("Meitou mod packages") { Patterns = ["*.meitoumod"] }],
+        });
+        var paths = files.Select(file => file.TryGetLocalPath()).OfType<string>().ToList();
+        if (paths.Count > 0) await InstallModsAsync(paths);
+    }
+
+    void Mods_DragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = install is not null && e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    async void Mods_Drop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        var paths = e.DataTransfer.TryGetFiles()?.Select(file => file.TryGetLocalPath()).OfType<string>()
+            .Where(path => path.EndsWith(".meitoumod", StringComparison.OrdinalIgnoreCase)).ToList() ?? [];
+        if (paths.Count == 0) { Status("Drop .meitoumod package files here."); return; }
+        await InstallModsAsync(paths);
+    }
+
+    async Task InstallModsAsync(IReadOnlyList<string> paths)
+    {
+        if (install is null) { Status("Set the Kenshi folder first (Settings)."); return; }
+        var targetInstall = install;
+        var packages = paths.Where(path => path.EndsWith(".meitoumod", StringComparison.OrdinalIgnoreCase)).Distinct(StringComparer.Ordinal).ToList();
+        if (packages.Count == 0) { Status("Choose .meitoumod package files."); return; }
+
+        Status(packages.Count == 1 ? $"Installing {Path.GetFileName(packages[0])}..." : $"Installing {packages.Count} mods...");
+        var installed = new List<(string Folder, bool Replaced)>();
+        var failures = new List<string>();
+        foreach (string package in packages)
+        {
+            try
+            {
+                var info = ModPackageInstaller.ReadInfo(package);
+                string target = Path.Combine(targetInstall.ModsDirectory, info.FolderName);
+                bool overwrite = false;
+                if (Directory.Exists(target))
+                {
+                    if (!await AskAsync("Replace mod?", $"'{info.FolderName}' is already installed. Replace it with this package?", "Replace", "Cancel"))
+                        continue;
+                    overwrite = true;
+                }
+                target = await Task.Run(() => ModPackageInstaller.Install(package, targetInstall.ModsDirectory, overwrite));
+                installed.Add((Path.GetFileName(target), overwrite));
+            }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+            {
+                failures.Add($"{Path.GetFileName(package)}: {error.Message}");
+            }
+        }
+
+        LoadMods();
+        if (installed.Count == 0 && failures.Count == 0)
+        {
+            Status("No mods installed.");
+            return;
+        }
+        if (installed.Count > 0)
+        {
+            var newlyInstalled = installed.Where(item => !item.Replaced).Select(item => item.Folder).ToHashSet(StringComparer.Ordinal);
+            foreach (var row in mods.Where(row => newlyInstalled.Contains(row.Name))) row.Enabled = true;
+            if (!SaveMods() || !ValidateMods()) return;
+        }
+        if (failures.Count > 0)
+        {
+            string more = failures.Count > 2 ? $" (+{failures.Count - 2} more)" : "";
+            Status($"Installed {installed.Count}; {failures.Count} failed: {string.Join(" | ", failures.Take(2))}{more}");
+        }
+        else
+        {
+            string action = installed.Any(item => !item.Replaced) ? "Installed and enabled" : "Installed";
+            Status($"{action}: {string.Join(", ", installed.Select(item => item.Folder))}.");
+        }
     }
 
     // Play resolves the enabled manifests before starting the game. Missing, disabled or version-mismatched dependencies and conflicts

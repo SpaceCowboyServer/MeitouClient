@@ -1,8 +1,8 @@
 # Mod SDK and local distribution
 
-**Implemented (2026-10-27):** `tools/Meitou.Sdk` and `meitou-tools mod ...` scaffold, validate, pack and install a mod without an install. A
-local repository is a folder of `.meitoumod` packages plus a generated index; Workshop is later. The two no-asset samples live in
-[`sdk/samples`](../sdk/samples).
+**Implemented (2026-10-27):** `tools/Meitou.Sdk` and `meitou-tools mod ...` scaffold, validate, pack and install a mod without an install.
+The launcher's **Install mod...** button and drag-and-drop install packages without the CLI. A local repository is a folder of
+`.meitoumod` packages plus a generated index; Workshop is later. The two no-asset samples live in [`sdk/samples`](../sdk/samples).
 
 ## Quick start
 
@@ -44,7 +44,8 @@ meitou-tools mod graph [folder]
 - `pack` validates first, then writes one `.meitoumod` zip. A source folder without `<folder>.mod` gets a generated empty `.mod` in the package;
   the source is not modified. A folder with a `.mod` must use `<folder>.mod` so the launcher can discover it.
 - `install` extracts a package into `<Kenshi>/mods/<folder>` (or `--mods`). It never edits `mods.cfg`; enable the mod in the launcher.
-  Existing folders are refused unless `--force`.
+  Existing folders are refused unless `--force`. The launcher's **Install mod...** button and drag-and-drop use the same AOT-safe package
+  installer, refresh the list, enable new mods and save `mods.cfg`; replacing an installed folder asks first.
 - `repo` writes `meitou-repository.json` beside the packages. `install <id> --repo <folder> [--version v]` chooses the exact version or the
   newest one. Workshop is deliberately not part of this local format.
 - `graph` prints the resolved install graph, or a source manifest's dependencies.

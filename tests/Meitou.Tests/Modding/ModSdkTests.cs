@@ -38,14 +38,15 @@ public class ModSdkTests
         string package = System.IO.Path.Combine(root.Path, "Hello.meitoumod");
         var packed = mod.Pack(new ModPackOptions { Output = package });
         Assert.False(packed.GeneratedDataFile);   // the scaffold already wrote Hello.mod
-        var info = ModPackage.ReadInfo(package);
+        var info = ModPackageInstaller.ReadInfo(package);
         Assert.Equal("example.hello", info.Manifest.Id);
 
         string mods = System.IO.Path.Combine(root.Path, "mods");
-        string installed = ModPackage.Install(package, mods);
+        string installed = ModPackageInstaller.Install(package, mods);
         Assert.Equal(System.IO.Path.Combine(mods, "Hello"), installed);
         Assert.True(File.Exists(System.IO.Path.Combine(installed, "Hello.mod")));
-        Assert.Throws<IOException>(() => ModPackage.Install(package, mods));
+        Assert.Throws<IOException>(() => ModPackageInstaller.Install(package, mods));
+        Assert.Equal(installed, ModPackageInstaller.Install(package, mods, overwrite: true));
 
         string repo = System.IO.Path.Combine(root.Path, "repo");
         Directory.CreateDirectory(repo);
@@ -74,11 +75,11 @@ public class ModSdkTests
 
         var packed = mod.Pack(new ModPackOptions { Output = System.IO.Path.Combine(root.Path, "NoData.meitoumod") });
         Assert.True(packed.GeneratedDataFile);
-        var info = ModPackage.ReadInfo(packed.Path);
+        var info = ModPackageInstaller.ReadInfo(packed.Path);
         Assert.Equal("example.nodata", info.Manifest.Id);
 
         string mods = System.IO.Path.Combine(root.Path, "mods");
-        ModPackage.Install(packed.Path, mods);
+        ModPackageInstaller.Install(packed.Path, mods);
         Assert.True(File.Exists(System.IO.Path.Combine(mods, "NoData", "NoData.mod")));
     }
 
@@ -95,7 +96,7 @@ public class ModSdkTests
                 writer.Write(ModFixtures.ManifestJson("example.bad"));
         }
 
-        Assert.Throws<InvalidDataException>(() => ModPackage.ReadInfo(package));
+        Assert.Throws<InvalidDataException>(() => ModPackageInstaller.ReadInfo(package));
     }
 
     [Fact]

@@ -221,8 +221,12 @@ start the `settings.cfg` value wins. The launcher's labels come from the same `.
   trusted C# plugins ([modding-csharp](modding-csharp.md)). Legacy mods without a manifest keep the rules above.
 - **Play safe mode** starts the game with `--safe-mode`: base data only, no mod level folders or mod code, and `mods.cfg` is not
   changed. `--validate-mods` runs the same diagnostics as `meitou-tools mods` without starting a world.
-- SDK packages install with `meitou-tools mod install`; a folder of `.meitoumod` files plus `meitou-repository.json` is the local repository
-  ([modding-sdk](modding-sdk.md)). The launcher only edits `mods.cfg`; it does not install packages.
+- **Install mod...** on the Mods page opens a file picker for one or more `.meitoumod` packages; dropping packages onto the page does
+  the same. The launcher validates and extracts them into `<Kenshi>/mods`, refreshes the list, enables new mods and saves `mods.cfg`.
+  Installing over an existing folder asks before replacing it. Manifest dependency checks run immediately after install and again on Play,
+  so a package with a disabled or missing dependency is reported before launch rather than installed silently.
+- The same packages can be installed from the CLI with `meitou-tools mod install`; a folder of `.meitoumod` files plus
+  `meitou-repository.json` is the local repository ([modding-sdk](modding-sdk.md)).
 
 ## News
 

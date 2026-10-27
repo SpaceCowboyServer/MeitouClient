@@ -1,8 +1,8 @@
 # Modding foundation
 
 **Status: manifest/resolver, VFS/content validation, startup validation, the C# plugin host, the Lua host, save mod metadata, safe mode,
-`--validate-mods`, the core contract board (faction, animal, named and spawned targets), and the SDK/package/local-repository flow, with
-no-asset C# and Lua samples, are implemented (2026-10-27); applying YAML content to gameplay is planned.** The RE_Kenshi
+`--validate-mods`, the core contract board (faction, animal, named and spawned targets), the SDK/package/local-repository flow and the
+launcher package install button, with no-asset C# and Lua samples, are implemented (2026-10-27); applying YAML content to gameplay is planned.** The RE_Kenshi
 decision ([rekenshi](formats/rekenshi.md)) stands: its native DLLs stay ignored. Data-only Kenshi mods load through the normal readers;
 Meitou's own mods use this plan.
 

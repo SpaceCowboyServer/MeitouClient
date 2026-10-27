@@ -2,6 +2,12 @@
 
 Released with tags `launcher-v<version>` by `.github/workflows/launcher-release.yml`; each release needs its `## v<version>` section.
 
+## v1.5.0
+
+- **Install mod...** on the Mods page: choose one or more `.meitoumod` packages, or drag-and-drop them onto the page. The launcher
+  validates and extracts them into Kenshi's `mods` folder, refreshes the list, enables new mods and saves the list; replacing an
+  installed mod asks first.
+
 ## v1.4.0
 
 - The Graphics page has **every graphics setting** of the game's Tab panel, sliders and Faithful / Meitou switches,

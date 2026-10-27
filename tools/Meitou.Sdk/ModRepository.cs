@@ -22,7 +22,7 @@ public static class ModRepository
         var entries = new List<RepositoryEntry>();
         foreach (string package in Directory.EnumerateFiles(root, "*.meitoumod", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal))
         {
-            var info = ModPackage.ReadInfo(package);
+            var info = ModPackageInstaller.ReadInfo(package);
             byte[] bytes = File.ReadAllBytes(package);
             entries.Add(new RepositoryEntry(info.Manifest.Id, info.Manifest.Version, Path.GetFileName(package),
                 Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()));
