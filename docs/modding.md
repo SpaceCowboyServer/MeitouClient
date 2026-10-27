@@ -130,6 +130,7 @@ Dependency direction: `Api` references the public Data/Simulation types (direct 
 | 5 | Lua host/sandbox | **done (core):** Lua contracts/events; broken script isolated |
 | 6 | Save/lifecycle/diagnostics | **done (core):** saved mod IDs/versions, load mismatch report, safe mode, `--validate-mods` |
 | 7 | SDK/docs/distribution | **done (local):** templates, validate/pack/install, local repository, no-asset samples; Workshop later |
+| 8 | Generic API/events | **proposed:** shared C#/Lua contracts, event bus, bounty migration; [modding-api](modding-api.md) |
 
 Order: data → C# → Lua. Do not build the distributor or Lua host before the data/API layers.
 
@@ -152,4 +153,6 @@ Order: data → C# → Lua. Do not build the distributor or Lua host before the 
 - System anchors: before/after a `StandardParts` member instead of append-only.
 - Contracts have faction-group, animal-species, named-character and fallback spawned targets; Lua can define faction/animal/spawned offers, while YAML content definitions and rank/progression are later content/UI layers.
 - Whether content items map onto FCS records or a new runtime item model.
+- The stable C#/Lua API and shared event bus are proposed in [modding-api](modding-api.md); direct simulation access stays a trusted
+  escape hatch for API 1 and is an API 2 decision.
 - Workshop needs Meitou's own Steam app; a local/custom repository comes first.

@@ -84,4 +84,5 @@ public interface IModContext
 - Shared save sidecars and command/resource access from Lua.
 - Collectible contexts, unload and hot reload.
 - Merging separately loaded private contract assemblies for typed cross-mod services.
+- A stable typed API and shared event bus; the proposed C#/Lua contract is in [modding-api](modding-api.md). The current `World`/`GameDatabase` access is a trusted escape hatch.
 - Automatic dependency installation and save migration when a mod is removed or upgraded.

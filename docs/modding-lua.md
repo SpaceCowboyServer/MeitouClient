@@ -94,3 +94,4 @@ contract; it uses only base-game data, so it needs no custom assets.
 - Lua commands, scheduler, asset/content queries, UI hooks and direct simulation access.
 - Lua save state; contract state is saved by the board. A small `ISaveable` bridge is planned with lifecycle work.
 - Instruction/time budgets, hot reload and unload.
+- The shared C#/Lua contract and event bus; the proposed API is in [modding-api](modding-api.md).
