@@ -112,11 +112,10 @@ sealed partial class PlayerInterface
                 lines.Add(new(Loc.Tr("Reward:"), Loc.Tr("c.{1,num}", detailContract.Reward)));
                 lines.Add(new(Loc.Tr("Deadline:"), Deadline(detailContract.ExpiresAtGameHours, detailContract.State)));
                 lines.Add(new(Loc.Tr("Status:"), ContractStatus(detailContract.State)));
-                bool firstDetail = true;
-                foreach (string part in WrapDetail(detailContract.Detail, 38))
+                if (detailContract.Detail.Length > 0)
                 {
-                    lines.Add(new(firstDetail ? Loc.Tr("Details:") : "", part));
-                    firstDetail = false;
+                    lines.Add(new(Loc.Tr("Details:"), ""));
+                    foreach (string part in WrapDetail(detailContract.Detail, 32)) lines.Add(new("", part));
                 }
                 if (detailContract.State == BountyState.ReadyToTurnIn)
                     lines.Add(new(Loc.Tr("Turn in at:"), detailContract.GiverName.Length > 0 ? detailContract.GiverName : detailContract.Giver));
