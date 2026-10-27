@@ -48,6 +48,7 @@ instance; the task family and its rules belong to the template.
 
 - Giver-scoped offers, a three-slot framework, turn-in and `ReadyToTurnIn`.
 - Contract deadlines (`DeadlineHours`), `Failed`/`Expired`, saved failure reasons and giver-death failure.
+- Content-defined character contracts select and mark one nearby non-unique character at offer time.
 - Ready/completed/failed/expired events and a journal view of open giver contracts with a Faction-tab detail panel.
 - `WorldDayChanged` for daily refresh.
 - Dynamic dialogue choices at the first conversation page.
@@ -146,8 +147,6 @@ Use placeholders or a host callback, but resolve once into API strings so C#/Lua
 
 ## Next slice
 
-- Add one generated target contract (a specific non-unique NPC) to the content pack without removing the three-slot
-  fallback.
 - Add tag/weight/cooldown selection for per-giver offer slates.
 - Add requirement and consequence policies (relation, rank, prior work, reward ranges and items).
 - Add a dialogue detail page and map markers for the active target/giver.

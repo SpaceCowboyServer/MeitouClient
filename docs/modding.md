@@ -28,8 +28,8 @@ disabling the revolver or the framework fails with a clear message; `--validate-
 a broken Lua script does not crash the game.
 
 The **core** part of the bounty slice is implemented as `BountyBoardSystem`: faction-group, animal-species, named non-story and fallback spawned-target
-offers, accept/abandon, progress, payment, deadlines/giver-death failure, the faction-tab journal/detail view and CAMERA/character save keys. Lua scripts can register faction, animal and spawned
-contracts through `meitou.contracts.register` and observe accepted/ready/completed/failed/expired board events. The external examples live in
+offers, accept/abandon, progress, payment, deadlines/giver-death failure, the faction-tab journal/detail view and CAMERA/character save keys. C# and Lua content can register faction, animal, spawned and generated-character
+contracts through the shared API and observe accepted/ready/completed/failed/expired board events. The external examples live in
 [`sdk/samples`](../sdk/samples): `frontier.contracts` is the reusable C# framework, `frontier.bounties` is its content pack, and the
 Lua sample depends on the content pack. They share the typed API and event bus in [modding-api](modding-api.md); YAML-defined contract
 targets/rewards and rank/progression remain later work. The asset-dependent `frontier.revolver` sample is blocked on custom

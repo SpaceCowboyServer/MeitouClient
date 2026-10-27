@@ -57,9 +57,9 @@ meitou.log.error(text)
 ```lua
 local id = meitou.contracts.register {
   id = "dust-bandit",             -- local ID: letters, digits, '_' '-' '.'
-  kind = "faction",               -- "faction", "animal" or "spawned"
-  faction = "Dust Bandits",       -- FACTION string ID or unique name; faction/spawned
-  record = "Dust Bandit",         -- ANIMAL_CHARACTER or CHARACTER ID/unique name; animal/spawned
+  kind = "faction",               -- "faction", "animal", "spawned" or "character"
+  faction = "Dust Bandits",       -- FACTION string ID or unique name; faction/spawned/character
+  record = "Dust Bandit",         -- ANIMAL_CHARACTER or CHARACTER ID/unique name; animal/spawned/character
   title = "Dust Bandit Cull",
   detail = "Kill two Dust Bandits", -- optional
   required = 2,                   -- default 1
@@ -72,8 +72,9 @@ local id = meitou.contracts.register {
 
 - The returned/global offer ID is `<mod id>:bounty/<local id>`; it is also the saved contract ID.
 - `faction` must be an existing `FACTION`; `animal` needs a non-unique `ANIMAL_CHARACTER`; `spawned` needs a non-unique `CHARACTER` and a `FACTION`.
-  Each accepts its string ID or its unique display name.
-- `capture` is accepted only for spawned contracts. A built-in downed named target can already use the capture path.
+  Each accepts its string ID or its unique display name. `character` needs a `FACTION`, a `CHARACTER` record, or both; the board picks a
+  nearby non-unique character and stores its marker at offer time. `character` contracts require exactly one target.
+- `capture` is accepted for spawned or character contracts. A built-in downed named target can already use the capture path.
 - A spawned contract creates the target squad on accept through the population's sandbox spawner; the target is marked and saved like a named
   target. The squad is idle in this first version.
 - A non-empty `giver` hides the offer from the Faction tab and makes it available through that bartender's dialogue. A giver contract

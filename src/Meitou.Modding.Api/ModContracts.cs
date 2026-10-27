@@ -113,7 +113,7 @@ public sealed record BountyExpired(
     int Required, int Reward, string Reason, string Giver = "", string GiverName = "");
 
 /// <summary>What a mod contract targets. Existing characters are not content contracts.</summary>
-public enum BountyTarget { Faction, AnimalSpecies, Spawned }
+public enum BountyTarget { Faction, AnimalSpecies, Spawned, Character }
 
 /// <summary>What the player must do to the target.</summary>
 public enum BountyGoal { Kill, Capture }

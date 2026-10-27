@@ -124,6 +124,7 @@ sealed class LuaMod
             "faction" => BountyTarget.Faction,
             "animal" => BountyTarget.AnimalSpecies,
             "spawned" => BountyTarget.Spawned,
+            "character" => BountyTarget.Character,
             var other => throw new ScriptRuntimeException($"meitou.contracts.register: unknown kind '{other}'."),
         };
         var goal = Text(table, "objective", "kill") switch
@@ -135,21 +136,15 @@ sealed class LuaMod
 
         string factionId = Text(table, "faction");
         string record = Text(table, "record");
-        if (target is BountyTarget.Faction or BountyTarget.Spawned)
+        if ((target is BountyTarget.Faction or BountyTarget.Spawned or BountyTarget.Character) && factionId.Length > 0)
             factionId = ResolveRecord(factionId, FcsRecordType.FACTION, "faction").StringId;
-        if (target == BountyTarget.AnimalSpecies)
+        if ((target is BountyTarget.AnimalSpecies or BountyTarget.Spawned or BountyTarget.Character) && record.Length > 0)
         {
-            var animal = ResolveRecord(record, FcsRecordType.ANIMAL_CHARACTER, "record");
-            if (UniqueCharacters.IsUnique(animal))
-                throw new ScriptRuntimeException($"meitou.contracts.register: animal '{animal.StringId}' is unique.");
-            record = animal.StringId;
-        }
-        if (target == BountyTarget.Spawned)
-        {
-            var character = ResolveRecord(record, FcsRecordType.CHARACTER, "record");
-            if (UniqueCharacters.IsUnique(character))
-                throw new ScriptRuntimeException($"meitou.contracts.register: character '{character.StringId}' is unique.");
-            record = character.StringId;
+            var expected = target == BountyTarget.AnimalSpecies ? FcsRecordType.ANIMAL_CHARACTER : FcsRecordType.CHARACTER;
+            var found = ResolveRecord(record, expected, "record");
+            if (UniqueCharacters.IsUnique(found))
+                throw new ScriptRuntimeException($"meitou.contracts.register: record '{found.StringId}' is unique.");
+            record = found.StringId;
         }
 
         return contracts.Register(new BountyDefinition(
@@ -158,8 +153,8 @@ sealed class LuaMod
             Goal: goal,
             Title: Text(table, "title", localId),
             Detail: Text(table, "detail"),
-            TargetRecord: target is BountyTarget.AnimalSpecies or BountyTarget.Spawned ? record : "",
-            FactionId: target is BountyTarget.Faction or BountyTarget.Spawned ? factionId : "",
+            TargetRecord: target is BountyTarget.AnimalSpecies or BountyTarget.Spawned or BountyTarget.Character ? record : "",
+            FactionId: target is BountyTarget.Faction or BountyTarget.Spawned or BountyTarget.Character ? factionId : "",
             Required: Int(table, "required", 1),
             Reward: Int(table, "reward", 0),
             Giver: Text(table, "giver"),

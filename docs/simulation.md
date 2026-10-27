@@ -585,7 +585,8 @@ faction squad near the player through `PopulationSystem.SpawnSandboxSquad` (idle
 `SimCommand`s from the faction tab (`PlayerInterface.Faction`); offers, progress and the distance to the nearest target are published in
 `WorldSnapshot.Bounties`. Completed contracts stay completed for that save; abandoning clears the target marker and reoffers. Saved in CAMERA
 (`meitou bounty*`, by faction ID and target marker; offers are derived again), so a save whose faction or target disappears drops only that contract.
-C# plugins and Lua scripts register through the shared `IModContext.Bounties` API into the same catalog the board reads; accepted,
+C# plugins and Lua scripts register through the shared `IModContext.Bounties` API into the same catalog the board reads; content may target a
+faction, an animal species, a spawned squad or one nearby non-unique character (the character is selected and marked at offer time). Accepted,
 ready, completed, failed and expired changes are published on `IModEvents` ([modding-api](modding-api.md)). A definition with a `Giver`
 is hidden from the Faction tab, is offered through that giver's dialogue, and pays only after the player turns it in; the dialog option
 source and `WorldDayChanged` are the API hooks. A giver contract can carry a `DeadlineHours` limit; an unfinished accepted contract

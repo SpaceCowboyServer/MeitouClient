@@ -105,6 +105,28 @@ public class LuaModHostTests
     }
 
     [Fact]
+    public void Lua_can_register_a_character_contract_by_faction()
+    {
+        using var root = new ModTempFolder();
+        var (host, api, _) = Load(root, ("frontier.character", """
+            meitou.contracts.register {
+              id = "character",
+              kind = "character",
+              faction = "Testfolk",
+              title = "Clean out a bandit",
+              required = 1,
+              reward = 5,
+            }
+            """));
+
+        Assert.Equal(1, host.ScriptCount);
+        var definition = Assert.Single(api.Contracts.Definitions);
+        Assert.Equal(BountyTargetKind.Character, definition.Kind);
+        Assert.Equal("20-t", definition.FactionId);
+        Assert.Equal("", definition.TargetRecord);
+    }
+
+    [Fact]
     public void A_script_contract_is_offered_accepted_paid_and_reports_events()
     {
         using var root = new ModTempFolder();

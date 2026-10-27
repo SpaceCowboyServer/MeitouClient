@@ -1,3 +1,4 @@
+using System.Numerics;
 using Meitou.Data;
 using Meitou.Data.Gameplay;
 using Meitou.Modding;
@@ -5,6 +6,7 @@ using Meitou.Modding.Api;
 using Meitou.Modding.Plugins;
 using Meitou.Modding.Runtime;
 using Meitou.Simulation;
+using Meitou.Simulation.Bodies;
 using Meitou.Simulation.Bounties;
 using Meitou.Simulation.Dialogue;
 using Meitou.Tests.Simulation;
@@ -47,6 +49,10 @@ public class BartenderSampleTests
         });
         using var world = new SimWorld(new WorldSettings { Seed = 1, Threads = 1, PublishSnapshots = false },
             new OpenGroundWalkability((_, _) => 0));
+        world.Characters.Spawn(new CharacterHot { Position = Vector3.Zero, Health = 100 },
+            new CharacterCold { Name = "hero", Faction = 0, IsPlayer = true, Medical = new MedicalState([]) }, 0);
+        world.Characters.Spawn(new CharacterHot { Position = new Vector3(100, 0, 0), Health = 100 },
+            new CharacterCold { Name = "Dust Bandit", Faction = 1, Medical = new MedicalState([]) }, 0);
         api.AttachBoard(board);
         api.AttachWorld(world);
         var situation = new DialogueSituation(CharacterId.None, CharacterId.None, "Barman", "barman-record", "hub", "The Hub", 1,

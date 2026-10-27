@@ -11,7 +11,7 @@ public sealed record BountyContractDefinition
     public required BountyObjective Objective { get; init; }
     public required string Title { get; init; }
     public string Detail { get; init; } = "";
-    /// <summary>The animal record for an animal cull, or the character record for a spawned target.</summary>
+    /// <summary>The animal record for an animal cull, or the character record for a character/spawned target.</summary>
     public string TargetRecord { get; init; } = "";
     /// <summary>The FACTION string ID for a faction contract or a spawned target's faction.</summary>
     public string FactionId { get; init; } = "";
@@ -104,8 +104,6 @@ public sealed class BountyContractCatalog
             throw new ArgumentException($"A contract deadline must be between 0 and {MaxDeadlineHours} hours; 0 means no deadline.", nameof(definition));
         if (!Enum.IsDefined(definition.Kind) || !Enum.IsDefined(definition.Objective))
             throw new ArgumentException("A contract has an unknown target kind or objective.", nameof(definition));
-        if (definition.Kind == BountyTargetKind.Character)
-            throw new ArgumentException("A content contract cannot name one existing character yet; use faction, animal or spawned.", nameof(definition));
         if (definition.Kind == BountyTargetKind.Faction && string.IsNullOrWhiteSpace(definition.FactionId))
             throw new ArgumentException("A faction contract needs a faction ID.", nameof(definition));
         if (definition.Kind == BountyTargetKind.AnimalSpecies && string.IsNullOrWhiteSpace(definition.TargetRecord))
@@ -113,7 +111,12 @@ public sealed class BountyContractCatalog
         if (definition.Kind == BountyTargetKind.Spawned &&
             (string.IsNullOrWhiteSpace(definition.FactionId) || string.IsNullOrWhiteSpace(definition.TargetRecord)))
             throw new ArgumentException("A spawned contract needs a faction ID and a character record.", nameof(definition));
-        if (definition.Objective == BountyObjective.Capture && definition.Kind != BountyTargetKind.Spawned)
-            throw new ArgumentException("Capture is only available for spawned targets.", nameof(definition));
+        if (definition.Kind == BountyTargetKind.Character &&
+            (string.IsNullOrWhiteSpace(definition.FactionId) && string.IsNullOrWhiteSpace(definition.TargetRecord)))
+            throw new ArgumentException("A character contract needs a faction ID or a character record.", nameof(definition));
+        if (definition.Kind == BountyTargetKind.Character && definition.Required != 1)
+            throw new ArgumentException("A character contract targets one character; required must be 1.", nameof(definition));
+        if (definition.Objective == BountyObjective.Capture && definition.Kind is not (BountyTargetKind.Spawned or BountyTargetKind.Character))
+            throw new ArgumentException("Capture is only available for spawned or character targets.", nameof(definition));
     }
 }

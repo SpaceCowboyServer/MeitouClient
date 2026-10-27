@@ -396,6 +396,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
     {
         var players = PlayerPositions(world);
         offers.RemoveAll(o => float.IsPositiveInfinity(OfferDistance(world, o, players)));
+        giverOffers.RemoveAll(o => o.Kind == BountyTargetKind.Character && float.IsPositiveInfinity(OfferDistance(world, o, players)));
         if (settings.Contracts is not { } catalog) giverOffers.Clear();
         else
         {
@@ -407,12 +408,12 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
                 if (definition.Giver.Length > 0)
                 {
                     if (giverOffers.Exists(o => o.Id == definition.Id) || contracts.Exists(c => c.Id == definition.Id)) continue;
-                    if (CustomOffer(definition, world.Seed) is { } giverOffer) giverOffers.Add(giverOffer);
+                    if (CustomOffer(definition, world, players, world.Seed) is { } giverOffer) giverOffers.Add(giverOffer);
                     continue;
                 }
                 if (offers.Count >= settings.MaxOffers) continue;
                 if (offers.Exists(o => o.Id == definition.Id) || contracts.Exists(c => c.Id == definition.Id)) continue;
-                if (CustomOffer(definition, world.Seed) is not { } offer || float.IsPositiveInfinity(OfferDistance(world, offer, players))) continue;
+                if (CustomOffer(definition, world, players, world.Seed) is not { } offer || float.IsPositiveInfinity(OfferDistance(world, offer, players))) continue;
                 offers.Add(offer);
             }
         }
@@ -463,7 +464,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
         "spawn:" + spawn.FactionId, BountyTargetKind.Spawned, BountyObjective.Kill, "Hunt a " + spawn.FactionName, spawn.FactionName,
         "Kill the target", spawn.RecordId, $"spawn:{seed}:{spawn.FactionId}", CharacterId.None, spawn.Faction, spawn.FactionId, 1, settings.SpawnReward);
 
-    BountyOffer? CustomOffer(BountyContractDefinition definition, ulong seed)
+    BountyOffer? CustomOffer(BountyContractDefinition definition, World world, List<Vector3> players, ulong seed)
     {
         string detail = !string.IsNullOrEmpty(definition.Detail)
             ? definition.Detail
@@ -471,7 +472,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             {
                 BountyTargetKind.Faction => $"{definition.Required} kills",
                 BountyTargetKind.AnimalSpecies => $"{definition.Required} animals",
-                BountyTargetKind.Spawned => definition.Objective == BountyObjective.Capture ? "Cage the target" : "Kill the target",
+                BountyTargetKind.Spawned or BountyTargetKind.Character => definition.Objective == BountyObjective.Capture ? "Cage the target" : "Kill the target",
                 _ => "",
             };
         switch (definition.Kind)
@@ -490,6 +491,15 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
                 return new(definition.Id, definition.Kind, definition.Objective, definition.Title, record.Name, detail,
                     definition.TargetRecord, null, CharacterId.None, -1, "", definition.Required, definition.Reward, definition.Giver, definition.DeadlineHours);
             }
+            case BountyTargetKind.Character:
+            {
+                if (FindContentCharacterTarget(world, players, definition, definition.Objective == BountyObjective.Capture) is not { } target) return null;
+                int faction = target.Cold.Faction;
+                string factionId = (uint)faction < (uint)data.Factions.Count ? data.Factions[faction].Id : "";
+                string marker = $"hunt:{seed}:{definition.Id}:{target.Id.Slot}:{target.Id.Generation}";
+                return new(definition.Id, definition.Kind, definition.Objective, definition.Title, target.Cold.Name, detail,
+                    target.Cold.RecordId, marker, target.Id, faction, factionId, definition.Required, definition.Reward, definition.Giver, definition.DeadlineHours);
+            }
             case BountyTargetKind.Spawned:
             {
                 if (Population is null || data.Db.Find(definition.TargetRecord) is not { Type: FcsRecordType.CHARACTER } record ||
@@ -501,6 +511,43 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             default:
                 return null;
         }
+    }
+
+    (CharacterId Id, CharacterCold Cold, float Distance)? FindContentCharacterTarget(World world, List<Vector3> players, BountyContractDefinition definition, bool capture)
+    {
+        if (players.Count == 0) return null;
+        string? record = string.IsNullOrWhiteSpace(definition.TargetRecord) ? null : definition.TargetRecord;
+        if (record is not null &&
+            (data.Db.Find(record) is not { Type: FcsRecordType.CHARACTER } foundRecord || UniqueCharacters.IsUnique(foundRecord)))
+            return null;
+        int faction = -1;
+        if (!string.IsNullOrWhiteSpace(definition.FactionId))
+        {
+            faction = data.FactionIndex(definition.FactionId);
+            if (faction < 0) return null;
+        }
+
+        (CharacterId Id, CharacterCold Cold, float Distance)? best = null;
+        for (int s = 0; s < world.Characters.HighWater; s++)
+        {
+            if (!world.Characters.Next[s].Alive) continue;
+            var id = world.Characters.IdOf(s);
+            if (world.Characters.Cold(s) is not
+                { IsPlayer: false, Medical.Dead: false, IsImprisoned: false, CarriedBy.IsNone: true, ContractTarget: null } cold)
+                continue;
+            if (cold.Fighter is { IsAnimal: true }) continue;
+            if (capture && cold.Medical is not { Incapacitated: true }) continue;
+            if (record is not null && cold.RecordId != record) continue;
+            if (faction >= 0 && cold.Faction != faction) continue;
+            if (offers.Exists(offer => offer.Target == id) || giverOffers.Exists(offer => offer.Target == id)) continue;
+            if (world.Uniques.RecordOf(id) is not null ||
+                data.Db.Find(cold.RecordId) is { } recordData && UniqueCharacters.IsUnique(recordData))
+                continue;
+            float distance = Distance(players, world.Characters.Next[s].Position);
+            if (distance > settings.OfferRange || best is { } current && current.Distance <= distance) continue;
+            best = (id, cold, distance);
+        }
+        return best;
     }
 
     SpawnCandidate? FindSpawnTarget(World world, List<Vector3> players)
@@ -630,7 +677,8 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
 
     static float NearestCharacter(World world, CharacterId id, List<Vector3> players)
     {
-        if (players.Count == 0 || id.IsNone || !TryFindTarget(world, id, out int slot, out var target) || target.Medical is not { Dead: false } || target.IsImprisoned)
+        if (players.Count == 0 || id.IsNone || !TryFindTarget(world, id, out int slot, out var target) ||
+            target.Medical is not { Dead: false } || target.IsImprisoned || target.ContractTarget is not null)
             return float.PositiveInfinity;
         return Distance(players, world.Characters.Next[slot].Position);
     }
@@ -654,6 +702,7 @@ public sealed class BountyBoardSystem(PopulationData data, BountySettings? setti
             if (!world.Characters.Next[s].Alive) continue;
             var id = world.Characters.IdOf(s);
             if (world.Characters.Cold(s) is not { IsPlayer: false, Medical.Dead: false, IsImprisoned: false, CarriedBy.IsNone: true, ContractTarget: null, Fighter.IsAnimal: false } c) continue;
+            if (offers.Exists(offer => offer.Target == id) || giverOffers.Exists(offer => offer.Target == id)) continue;
             if (!BanditLike(c) || world.Uniques.RecordOf(id) is not null) continue;
             if (data.Db.Find(c.RecordId) is { } record && Meitou.Simulation.UniqueCharacters.IsUnique(record)) continue;   // leave story NPCs alone
             float distance = Distance(players, world.Characters.Next[s].Position);

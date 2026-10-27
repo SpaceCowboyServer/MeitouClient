@@ -121,6 +121,7 @@ public sealed class BountyApi : IBountyBoard
             BountyTarget.Faction => BountyTargetKind.Faction,
             BountyTarget.AnimalSpecies => BountyTargetKind.AnimalSpecies,
             BountyTarget.Spawned => BountyTargetKind.Spawned,
+            BountyTarget.Character => BountyTargetKind.Character,
             _ => throw new ArgumentException("The contract has an unknown target.", nameof(definition)),
         };
         var objective = definition.Goal == BountyGoal.Capture ? BountyObjective.Capture : BountyObjective.Kill;

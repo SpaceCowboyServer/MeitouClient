@@ -368,6 +368,39 @@ public class BountyTests
     }
 
     [Fact]
+    public void A_content_character_contract_picks_a_nearby_non_unique_target()
+    {
+        var catalog = new BountyContractCatalog();
+        catalog.Register("frontier.test", new BountyContractDefinition
+        {
+            Id = "frontier.test:bounty/individual", Kind = BountyTargetKind.Character, Objective = BountyObjective.Kill,
+            Title = "Clean out a bandit", FactionId = "bandits", Required = 1, Reward = 700,
+        });
+        using var rig = new Rig(new BountySettings
+        {
+            Contracts = catalog, OfferRefreshTicks = 1, ViewRefreshTicks = 1, MaxOffers = 1,
+            OfferSpecific = false, OfferAnimals = false, OfferSpawned = false,
+        });
+        var player = rig.Player(Vector2.Zero);
+        var target = rig.Bandit(new Vector2(100, 0), "Dusty");
+        rig.Run(1);
+
+        var offer = Assert.Single(rig.Board.Published.Offers);
+        Assert.Equal("frontier.test:bounty/individual", offer.Id);
+        rig.World.Commands.Enqueue(new AcceptBountyCommand(offer.Id) { Tick = rig.World.Tick });
+        rig.Run(1);
+        var contract = Assert.Single(rig.Board.Contracts);
+        Assert.Equal(BountyTargetKind.Character, contract.Kind);
+        Assert.Equal("Dusty", contract.TargetName);
+        Assert.Equal(rig.Cold(target).ContractTarget, contract.TargetMarker);
+        Assert.Equal(BountyState.Accepted, contract.State);
+
+        rig.Board.Died(rig.World, player.Slot, target.Slot);
+        Assert.Equal(BountyState.Completed, contract.State);
+        Assert.Equal(700, rig.World.Player.Money);
+    }
+
+    [Fact]
     public void A_downed_named_target_offers_capture_and_completes_when_caged()
     {
         using var rig = new Rig(new BountySettings { OfferRefreshTicks = 1, ViewRefreshTicks = 1, OfferAnimals = false });

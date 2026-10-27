@@ -60,7 +60,7 @@ public sealed record BountyExpired(
     string Id, string Title, string Target, string Kind, string Objective,
     int Required, int Reward, string Reason, string Giver = "", string GiverName = "");
 
-public enum BountyTarget { Faction, AnimalSpecies, Spawned }
+public enum BountyTarget { Faction, AnimalSpecies, Spawned, Character }
 public enum BountyGoal { Kill, Capture }
 
 public sealed record BountyDefinition(
@@ -144,6 +144,8 @@ public interface IDialogue
 - `LocalId` uses 1-64 letters, digits, `_`, `-` or `.`; registration returns `<mod id>:bounty/<local id>`.
 - `FactionId` and `TargetRecord` are FCS string IDs. `Required` defaults to 1 and `Reward` to 0. `DeadlineHours` defaults to
   0 (no deadline) and is capped at 10,000.
+- `BountyTarget.Character` picks a nearby non-unique character at offer time. Use `FactionId`, `TargetRecord`, or both;
+  `Required` must be 1. The offer carries the resolved name and marker, and the contract follows that character.
 - `Giver` is a bartender key. A non-empty giver hides the offer from the Faction tab and exposes it through
   `OffersFor`/`ActiveFor`; an empty giver is a normal global contract. `Journal` lists open giver contracts after the player
   walks away from the bar.

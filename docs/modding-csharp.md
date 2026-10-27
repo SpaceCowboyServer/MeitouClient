@@ -53,7 +53,8 @@ public interface IModContext
   Handlers run on the simulation thread; a throwing handler is logged without stopping other handlers or the world.
 - **Bounties:** `context.Bounties.Register(new BountyDefinition(...))` registers one content contract; `context.Board` reads the
   current offers/active/journal views. A non-empty `Giver` makes a bartender contract; it is hidden from the Faction tab, becomes
-  `Ready` when done and pays through `TurnIn`. `DeadlineHours` expires an unfinished accepted contract; `BountyStatus` exposes
+  `Ready` when done and pays through `TurnIn`. `BountyTarget.Character` picks one nearby non-unique character (by faction, record, or both) at
+  offer time and marks it. `DeadlineHours` expires an unfinished accepted contract; `BountyStatus` exposes
   accepted/ready/completed/failed/expired, and `BountyReady`/`BountyFailed`/`BountyExpired` are published events. Pass the giver's
   stable `DialogueContext.NpcId`/`NpcName` to `IBountyBoard.Accept` so giver death and the journal work. The game owns the catalog, so
   a plugin no longer provides one under `ModServiceKeys.BountyContracts` (that key is legacy only).
