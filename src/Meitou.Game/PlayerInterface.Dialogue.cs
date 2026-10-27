@@ -56,6 +56,10 @@ sealed partial class PlayerInterface
     void BindDialogueScreen(UiBindings b)
     {
         if (session.CurrentSnapshot.Conversation is not { } talk) return;
+        // The brief needs one or two more text lines than a one-line conversation. Grow only the NPC panel upward; the
+        // player/choice panel keeps its normal size.
+        if (talk.Page)
+            b.Positions["NpcPanel"] = new UiRect(Width * 0.25f, Height * 0.54f, Width * 0.484375f, Height * 0.20f);
         b.Text["NpcName"] = talk.SpeakerName;
         b.Text["PlayerName"] = talk.PlayerName;
         b.Text["NpcDialog"] = talk.Text;
