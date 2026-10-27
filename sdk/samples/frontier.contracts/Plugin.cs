@@ -135,31 +135,31 @@ sealed class ContractBook(IModContext context, Plugin owner) : ISaveable
         string id = ContractId(item.LocalId);
         if (context.Board.ActiveFor(ctx.GiverId).FirstOrDefault(contract => contract.Id == id) is { } active)
         {
-            ShowPage(ctx, id, active.Title, active.Target, active.Detail, active.GiverName, active.Progress, active.Required,
+            ShowPage(ctx, id, active.Title, active.Target, active.GiverName, active.Progress, active.Required,
                 active.Reward, active.ExpiresAtGameHours < 0 ? "None" : $"{(active.ExpiresAtGameHours <= ctx.GameHours ? "Due" : $"{Math.Ceiling(active.ExpiresAtGameHours - ctx.GameHours)} h")}",
                 active.Ready ? "Ready to turn in" : "Active", canAccept: false, canTurnIn: active.Ready);
             return;
         }
         if (context.Board.OffersFor(ctx.GiverId).FirstOrDefault(offer => offer.Id == id) is { } offer)
         {
-            ShowPage(ctx, id, offer.Title, offer.Target, offer.Detail, ctx.NpcName, 0, offer.Required, offer.Reward,
+            ShowPage(ctx, id, offer.Title, offer.Target, ctx.NpcName, 0, offer.Required, offer.Reward,
                 offer.DeadlineHours > 0 ? $"{offer.DeadlineHours} h" : "None", "Available", canAccept: true, canTurnIn: false);
             return;
         }
         if (context.Board.CompletedFor(ctx.GiverId).FirstOrDefault(contract => contract.Id == id) is { } completed)
-            ShowPage(ctx, id, completed.Title, completed.Target, completed.Detail, completed.GiverName, completed.Progress, completed.Required,
+            ShowPage(ctx, id, completed.Title, completed.Target, completed.GiverName, completed.Progress, completed.Required,
                 completed.Reward, "Met", "Completed", canAccept: false, canTurnIn: false);
     }
 
-    void ShowPage(DialogueContext ctx, string id, string title, string target, string detail, string giver, int progress, int required,
+    void ShowPage(DialogueContext ctx, string id, string title, string target, string giver, int progress, int required,
         int reward, string deadline, string status, bool canAccept, bool canTurnIn)
     {
         var choices = new List<DialoguePageChoice>();
         if (canAccept) choices.Add(new("accept", "Accept contract"));
         if (canTurnIn) choices.Add(new("turnin", "Turn in contract"));
         choices.Add(new("back", "Back"));
-        string text = $"{title}\n\nTarget: {target}\nGiver: {(giver.Length > 0 ? giver : ctx.NpcName)}\nProgress: {progress}/{required}\nReward: c.{reward:N0}\nDeadline: {deadline}\nStatus: {status}" +
-            (detail.Length > 0 ? $"\n\n{detail}" : "");
+        // Keep this a compact brief that fits the normal conversation panel; the journal carries the full description.
+        string text = $"{title} — {status}\nTarget: {target}    Giver: {(giver.Length > 0 ? giver : ctx.NpcName)}\nReward: c.{reward:N0}    Deadline: {deadline}\nProgress: {progress}/{required}";
         context.Dialogue.ShowPage(new DialoguePage(text, choices), choice =>
         {
             try
