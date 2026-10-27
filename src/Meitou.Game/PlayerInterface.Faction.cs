@@ -113,7 +113,7 @@ sealed partial class PlayerInterface
                 lines.Add(new(Loc.Tr("Deadline:"), Deadline(detailContract.ExpiresAtGameHours, detailContract.State)));
                 lines.Add(new(Loc.Tr("Status:"), ContractStatus(detailContract.State)));
                 bool firstDetail = true;
-                foreach (string part in WrapDetail(detailContract.Detail, 46))
+                foreach (string part in WrapDetail(detailContract.Detail, 38))
                 {
                     lines.Add(new(firstDetail ? Loc.Tr("Details:") : "", part));
                     firstDetail = false;
